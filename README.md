@@ -79,6 +79,21 @@ flowchart LR
     class Proto,Prom support
 ```
 
+### 📋 DB Schema
+```mermaid
+erDiagram
+    tasks
+
+    tasks {
+        UUID id PK
+        string schedule
+        string[] command
+        string status "pending, running, completed, failed"
+        timestamp created_at
+        timestamp updated_at
+    }
+
+```
 ## 🧩 Core Components
 
 ### 🚀 Microservices (`apps/`)
@@ -209,15 +224,5 @@ docker-compose up -d
 # Check service health
 curl http://localhost:8080/health
 ```
-
-## 📜 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
 ---
-
-<div align="center">
-
-**Built with ❤️ using Go, gRPC, and modern cloud-native technologies**
-
-</div>
+*Documentation generated with use of Github Copilot*
