@@ -2,7 +2,7 @@
 
 > **A modern, scalable microservices-based system for distributed task orchestration**
 
-[![Go](https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat-square&logo=go)](https://golang.org/)
+[![Go](https://img.shields.io/badge/Go-1.25.4+-00ADD8?style=flat-square&logo=go)](https://golang.org/)
 
 TaskFlow is a **production-ready microservices ecosystem** built in Go for scheduling, executing, and monitoring distributed tasks. Designed with **scalability**, **resilience**, and **observability** at its core, using gRPC for type-safe inter-service communication and Prometheus for comprehensive monitoring.
 
@@ -35,10 +35,6 @@ flowchart LR
     DB[("Database")]
     MQ_Task["Task Queue"]
     MQ_Result["Result Queue"]
-    
-    %% Supporting (separate area)
-    Proto["Proto<br/>Contracts"]
-    Prom["Prometheus<br/>Monitoring"]
 
     %% Main Flow (numbered for clarity)
     User -->|"1. Request"| GW
@@ -54,19 +50,6 @@ flowchart LR
     AGG -->|"11. Notify"| NOT
     NOT -->|"12. Alert"| Email
 
-    %% Support Connections (minimal intersections)
-    Proto -.-> GW
-    Proto -.-> SCH  
-    Proto -.-> AGG
-    Proto -.-> NOT
-    Proto -.-> WRK
-    
-    Prom -.-> GW
-    Prom -.-> SCH
-    Prom -.-> AGG
-    Prom -.-> NOT
-    Prom -.-> WRK
-
     %% Styling
     classDef service fill:#e3f2fd,stroke:#1976d2,stroke-width:2px,color:#000000
     classDef data fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px,color:#000000
@@ -76,7 +59,6 @@ flowchart LR
     class GW,SCH,AGG,NOT,WRK service
     class DB,MQ_Task,MQ_Result data
     class User,External,Email external
-    class Proto,Prom support
 ```
 
 ### 📋 DB Schema
@@ -225,4 +207,4 @@ docker-compose up -d
 curl http://localhost:8080/health
 ```
 ---
-*Documentation generated with use of Github Copilot*
+*Documentation are generated with use of Github Copilot*

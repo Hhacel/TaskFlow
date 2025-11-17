@@ -1,7 +1,7 @@
 package main
 
 import (
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 
@@ -20,6 +20,9 @@ func main() {
 		c.JSON(http.StatusOK, gin.H{"status": "ok", "service": "aggregator"})
 	})
 
-	log.Printf("Aggregator starting on port %s", port)
-	log.Fatal(r.Run(":" + port))
+	slog.Info("Aggregator starting", "port", port)
+	if err := r.Run(":" + port); err != nil {
+		slog.Error("Failed to start Aggregator", "error", err)
+		os.Exit(1)
+	}
 }

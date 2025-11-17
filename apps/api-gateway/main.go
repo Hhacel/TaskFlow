@@ -1,7 +1,7 @@
 package main
 
 import (
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 
@@ -28,8 +28,11 @@ func main() {
 		v1.POST("/tasks", createTask)
 	}
 
-	log.Printf("API Gateway starting on port %s", port)
-	log.Fatal(r.Run(":" + port))
+	slog.Info("API Gateway starting", "port", port)
+	if err := r.Run(":" + port); err != nil {
+		slog.Error("Failed to start API Gateway", "error", err)
+		os.Exit(1)
+	}
 }
 
 func getTasks(c *gin.Context) {

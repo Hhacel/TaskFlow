@@ -1,7 +1,7 @@
 package main
 
 import (
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 
@@ -20,6 +20,9 @@ func main() {
 		c.JSON(http.StatusOK, gin.H{"status": "ok", "service": "worker"})
 	})
 
-	log.Printf("Worker starting on port %s", port)
-	log.Fatal(r.Run(":" + port))
+	slog.Info("Worker starting", "port", port)
+	if err := r.Run(":" + port); err != nil {
+		slog.Error("Failed to start Worker", "error", err)
+		os.Exit(1)
+	}
 }
