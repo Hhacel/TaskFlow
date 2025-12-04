@@ -3,9 +3,11 @@ package database
 import (
 	"fmt"
 	"log"
+	"log/slog"
 	"os"
 	"time"
 
+	"github.com/hhace/taskflow/models"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -36,8 +38,8 @@ func LoadConfig() *Config {
 	}
 }
 
-// Connect establishes connection to PostgreSQL database
-func Connect(config *Config) error {
+// Connect establishes connection to PostgreSQL database with retry logic
+func Connect(config *Config, maxRetries int) error {
 	dsn := fmt.Sprintf(
 		"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
 		config.Host, config.Port, config.User, config.Password, config.DBName, config.SSLMode,
@@ -47,21 +49,38 @@ func Connect(config *Config) error {
 	gormLogger := logger.New(
 		log.New(os.Stdout, "\r\n", log.LstdFlags),
 		logger.Config{
-			SlowThreshold:             time.Second,   // Slow SQL threshold
-			LogLevel:                  logger.Info,   // Log level
-			IgnoreRecordNotFoundError: true,          // Ignore ErrRecordNotFound error for logger
-			Colorful:                  true,          // Enable color
+			SlowThreshold:             time.Second, // Slow SQL threshold
+			LogLevel:                  logger.Info, // Log level
+			IgnoreRecordNotFoundError: true,        // Ignore ErrRecordNotFound error for logger
+			Colorful:                  true,        // Enable color
 		},
 	)
 
-	// Open connection
+	// Simple retry logic with fixed delay
 	var err error
-	DB, err = gorm.Open(postgres.Open(dsn), &gorm.Config{
-		Logger: gormLogger,
-	})
+
+	for i := 0; i < maxRetries; i++ {
+		DB, err = gorm.Open(postgres.Open(dsn), &gorm.Config{
+			Logger: gormLogger,
+		})
+
+		if err == nil {
+			// Test the connection
+			if sqlDB, dbErr := DB.DB(); dbErr == nil && sqlDB.Ping() == nil {
+				break
+			}
+		}
+
+		if i < maxRetries-1 {
+			slog.Warn("Database connection failed, retrying", "attempt", i+1, "error", err)
+			time.Sleep(2 * time.Second) // Simple 2-second delay
+		} else {
+			slog.Error("Database connection failed on final attempt", "attempt", i+1, "error", err)
+		}
+	}
 
 	if err != nil {
-		return fmt.Errorf("failed to connect to database: %w", err)
+		return fmt.Errorf("failed to connect to database after %d retries: %w", maxRetries, err)
 	}
 
 	// Configure connection pool
@@ -75,7 +94,7 @@ func Connect(config *Config) error {
 	sqlDB.SetMaxOpenConns(100)          // Maximum open connections
 	sqlDB.SetConnMaxLifetime(time.Hour) // Connection max lifetime
 
-	log.Println("Database connected successfully!")
+	slog.Info("Database connected successfully")
 	return nil
 }
 
@@ -99,9 +118,14 @@ func Migrate() error {
 		return fmt.Errorf("database not connected")
 	}
 
+	// Enable UUID extension for PostgreSQL
+	if err := DB.Exec("CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\"").Error; err != nil {
+		return fmt.Errorf("failed to create uuid extension: %w", err)
+	}
+
 	// Auto migrate your models here
 	err := DB.AutoMigrate(
-		&Task{},
+		&models.Task{},
 		// Add other models here as you create them
 	)
 
@@ -109,7 +133,7 @@ func Migrate() error {
 		return fmt.Errorf("failed to migrate database: %w", err)
 	}
 
-	log.Println("Database migration completed!")
+	slog.Info("Database migration completed")
 	return nil
 }
 
@@ -134,3 +158,4 @@ func Health() error {
 
 	return sqlDB.Ping()
 }
+

@@ -1,18 +1,8 @@
-version: '3.8'
-
 services:
-  api-gateway:
-    build: ./apps/api-gateway
-    ports:
-      - "8080:8080"
-    environment:
-      - PORT=8080
-    depends_on:
-      - scheduler
-      - aggregator
-
   scheduler:
-    build: ./apps/scheduler
+    build:
+      context: .
+      dockerfile: ./apps/scheduler/Dockerfile
     ports:
       - "8081:8081"
     environment:
@@ -23,7 +13,9 @@ services:
       - nats
 
   worker:
-    build: ./apps/worker
+    build:
+      context: .
+      dockerfile: ./apps/worker/Dockerfile
     ports:
       - "8082:8082"
     environment:
@@ -32,7 +24,9 @@ services:
       - nats
 
   notifier:
-    build: ./apps/notifier
+    build:
+      context: .
+      dockerfile: ./apps/notifier/Dockerfile
     ports:
       - "8083:8083"
     environment:
@@ -41,7 +35,9 @@ services:
       - nats
 
   aggregator:
-    build: ./apps/aggregator
+    build:
+      context: .
+      dockerfile: ./apps/aggregator/Dockerfile
     ports:
       - "8084:8084"
     environment:
