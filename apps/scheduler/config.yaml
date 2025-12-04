@@ -13,7 +13,7 @@ database:
   ssl_mode: "disable"
   max_open_conns: 25
   max_idle_conns: 5
-  conn_max_lifetime_minutes: 5
+  conn_max_lifetime_minutes: 60
 
 nats:
   url: "nats://nats:4222"
