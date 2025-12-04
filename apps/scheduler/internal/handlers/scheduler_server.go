@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/hhace/taskflow/apps/scheduler/config"
@@ -18,18 +19,37 @@ import (
 
 // SchedulerServer implements the generated ServerInterface
 type SchedulerServer struct {
+	config   *config.Config
 	taskRepo *database.TaskRepository
 	natsConn *nats.Conn
 }
 
 // NewSchedulerServer creates a new scheduler server
-func NewSchedulerServer(taskRepo *database.TaskRepository) (*SchedulerServer, error) {
-	nc, err := nats.Connect(nats.DefaultURL)
+func NewSchedulerServer(cfg *config.Config, taskRepo *database.TaskRepository) (*SchedulerServer, error) {
+	// Connect to NATS with reconnect options
+	opts := []nats.Option{
+		nats.ReconnectWait(time.Duration(cfg.NATS.ReconnectWait) * time.Second),
+		nats.MaxReconnects(cfg.NATS.MaxReconnects),
+		nats.DisconnectErrHandler(func(nc *nats.Conn, err error) {
+			if err != nil {
+				slog.Warn("NATS disconnected", "error", err)
+			}
+		}),
+		nats.ReconnectHandler(func(nc *nats.Conn) {
+			slog.Info("NATS reconnected", "url", nc.ConnectedUrl())
+		}),
+	}
+
+	nc, err := nats.Connect(cfg.NATS.URL, opts...)
 	if err != nil {
 		slog.Error("Failed to connect to NATS", "error", err)
 		return nil, err
 	}
+
+	slog.Info("Connected to NATS", "url", cfg.NATS.URL)
+
 	return &SchedulerServer{
+		config:   cfg,
 		taskRepo: taskRepo,
 		natsConn: nc,
 	}, nil
@@ -193,10 +213,10 @@ func (s *SchedulerServer) publishTaskToQueue(task *models.Task) error {
 		return fmt.Errorf("failed to marshal task to JSON: %w", err)
 	}
 
-	if err := s.natsConn.Publish(config.TASK_SCHEDULE_QUEUE_SUBJECT, taskJSON); err != nil {
+	if err := s.natsConn.Publish(s.config.NATS.TaskScheduleSubject, taskJSON); err != nil {
 		return fmt.Errorf("failed to publish task to NATS: %w", err)
 	}
 
-	slog.Debug("Task published to queue", "taskId", task.ID, "subject", config.TASK_SCHEDULE_QUEUE_SUBJECT)
+	slog.Debug("Task published to queue", "taskId", task.ID, "subject", s.config.NATS.TaskScheduleSubject)
 	return nil
 }
