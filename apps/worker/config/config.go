@@ -75,7 +75,7 @@ func LoadConfig(filepath string) (*Config, error) {
 
 	// If no file specified, return default config
 	if filepath == "" {
-		slog.Info("No config file path provided, using defaults")
+		slog.Warn("No config file path provided, using defaults")
 		return config, nil
 	}
 
