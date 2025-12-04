@@ -1,0 +1,21 @@
+# Worker Configuration
+# This file can be overridden by environment variables
+
+server:
+  port: "8082"
+
+nats:
+  url: "nats://nats:4222"
+  task_schedule_subject: "tasks.schedule"
+  task_result_subject: "tasks.results"
+  queue_group_name: "workers"
+  reconnect_wait_seconds: 2
+  max_reconnects: 60
+
+worker:
+  task_timeout_minutes: 5
+  max_concurrent_tasks: 10
+
+logging:
+  level: "info"  # debug, info, warn, error
+  format: "json" # json or text

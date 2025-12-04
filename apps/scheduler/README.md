@@ -109,12 +109,12 @@ The schedule field uses standard cron expression format:
 ```
 * * * * * *
 │ │ │ │ │ │
-│ │ │ │ │ └─ Seconds (0-59)
-│ │ │ │ └─── Minutes (0-59)
-│ │ │ └───── Hours (0-23)
-│ │ └─────── Day of month (1-31)
-│ └───────── Month (1-12)
-└─────────── Day of week (0-6, Sunday=0)
+│ │ │ │ │ └─ Day of week: * (every day)
+│ │ │ │ └─── Month: * (every month)
+│ │ │ └───── Day of month: * (every day)
+│ │ └─────── Hours: * (every hour)
+│ └───────── Minutes: * (every minute)
+└────────────── Seconds: */30 (every 30 seconds)
 ```
 
 Examples:

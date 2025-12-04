@@ -18,31 +18,22 @@ var DB *gorm.DB
 
 // Config holds database configuration
 type Config struct {
-	Host     string
-	Port     string
-	User     string
-	Password string
-	DBName   string
-	SSLMode  string
-}
-
-// LoadConfig loads database configuration from environment variables
-func LoadConfig() *Config {
-	return &Config{
-		Host:     getEnv("DB_HOST", "localhost"),
-		Port:     getEnv("DB_PORT", "5432"),
-		User:     getEnv("DB_USER", "taskflow"),
-		Password: getEnv("DB_PASSWORD", "taskflow"),
-		DBName:   getEnv("DB_NAME", "taskflow"),
-		SSLMode:  getEnv("DB_SSLMODE", "disable"),
-	}
+	Host                   string `yaml:"host"`
+	Port                   string `yaml:"port"`
+	User                   string `yaml:"user"`
+	Password               string `yaml:"password"`
+	Database               string `yaml:"database"`
+	SSLMode                string `yaml:"ssl_mode"`
+	MaxOpenConns           int    `yaml:"max_open_conns"`
+	MaxIdleConns           int    `yaml:"max_idle_conns"`
+	ConnMaxLifetimeMinutes int    `yaml:"conn_max_lifetime_minutes"`
 }
 
 // Connect establishes connection to PostgreSQL database with retry logic
-func Connect(config *Config, maxRetries int) error {
+func Connect(config Config, maxRetries int) error {
 	dsn := fmt.Sprintf(
 		"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
-		config.Host, config.Port, config.User, config.Password, config.DBName, config.SSLMode,
+		config.Host, config.Port, config.User, config.Password, config.Database, config.SSLMode,
 	)
 
 	// Configure GORM logger
@@ -90,11 +81,15 @@ func Connect(config *Config, maxRetries int) error {
 	}
 
 	// Connection pool settings
-	sqlDB.SetMaxIdleConns(10)           // Maximum idle connections
-	sqlDB.SetMaxOpenConns(100)          // Maximum open connections
-	sqlDB.SetConnMaxLifetime(time.Hour) // Connection max lifetime
+	sqlDB.SetMaxIdleConns(config.MaxIdleConns)
+	sqlDB.SetMaxOpenConns(config.MaxOpenConns)
+	sqlDB.SetConnMaxLifetime(time.Duration(config.ConnMaxLifetimeMinutes) * time.Minute)
 
-	slog.Info("Database connected successfully")
+	slog.Info("Database connected successfully",
+		"host", config.Host,
+		"database", config.Database,
+		"maxOpenConns", config.MaxOpenConns,
+		"maxIdleConns", config.MaxIdleConns)
 	return nil
 }
 
