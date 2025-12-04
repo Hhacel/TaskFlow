@@ -6,11 +6,12 @@ services:
     ports:
       - "8081:8081"
     environment:
-      - PORT=8081
-      - DB_HOST=postgres
+      - CONFIG_PATH=/app/config.yaml  
     depends_on:
       - postgres
       - nats
+    volumes:
+      - ./apps/scheduler/config.yaml:/app/config.yaml:ro
 
   worker:
     build:
@@ -19,9 +20,11 @@ services:
     ports:
       - "8082:8082"
     environment:
-      - PORT=8082
+      - CONFIG_PATH=/app/config.yaml
     depends_on:
       - nats
+    volumes:
+      - ./apps/worker/config.yaml:/app/config.yaml:ro
 
   notifier:
     build:
@@ -78,6 +81,15 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=admin
     volumes:
       - grafana_data:/var/lib/grafana
+
+  nats-surveyor:
+    image: natsio/nats-surveyor:latest
+    ports:
+      - "7777:7777"
+    environment:
+      - NATS_SURVEYOR_SERVERS=nats://nats:4222
+    depends_on:
+      - nats
 
 volumes:
   postgres_data:
