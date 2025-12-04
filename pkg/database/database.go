@@ -126,7 +126,8 @@ func Migrate() error {
 	// Auto migrate your models here
 	err := DB.AutoMigrate(
 		&models.Task{},
-		// Add other models here as you create them
+		&models.TaskExecutionResult{},
+		// Add other models here as needed
 	)
 
 	if err != nil {
@@ -158,4 +159,3 @@ func Health() error {
 
 	return sqlDB.Ping()
 }
-

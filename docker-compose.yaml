@@ -41,10 +41,12 @@ services:
     ports:
       - "8084:8084"
     environment:
-      - PORT=8084
-      - DB_HOST=postgres
+      - CONFIG_PATH=/app/config.yaml
     depends_on:
       - postgres
+      - nats
+    volumes:
+      - ./apps/aggregator/config.yaml:/app/config.yaml:ro
 
   postgres:
     image: postgres:15

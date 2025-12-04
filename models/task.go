@@ -23,12 +23,12 @@ const (
 
 // Task represents a task in the system
 type Task struct {
-	ID        uuid.UUID    `gorm:"type:uuid;primary_key;default:uuid_generate_v4()" json:"id"`
-	Schedule  string       `gorm:"type:varchar(255);not null" json:"schedule"`
-	Command   StringArray  `gorm:"type:text[]" json:"command"`
-	Status    TaskStatus   `gorm:"type:varchar(20);not null;default:'pending'" json:"status"`
-	CreatedAt time.Time    `gorm:"autoCreateTime" json:"created_at"`
-	UpdatedAt time.Time    `gorm:"autoUpdateTime" json:"updated_at"`
+	ID        uuid.UUID   `gorm:"type:uuid;primary_key;default:uuid_generate_v4()" json:"id"`
+	Schedule  string      `gorm:"type:varchar(255);not null" json:"schedule"`
+	Command   StringArray `gorm:"type:text[]" json:"command"`
+	Status    TaskStatus  `gorm:"type:varchar(20);not null;default:'pending'" json:"status"`
+	CreatedAt time.Time   `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt time.Time   `gorm:"autoUpdateTime" json:"updated_at"`
 }
 
 // StringArray is a custom type for PostgreSQL text arrays
@@ -49,14 +49,14 @@ func (s *StringArray) Scan(value interface{}) error {
 			*s = []string{}
 			return nil
 		}
-		
+
 		// Remove braces and split by comma
 		str = strings.Trim(str, "{}")
 		if str == "" {
 			*s = []string{}
 			return nil
 		}
-		
+
 		*s = strings.Split(str, ",")
 		return nil
 	case pq.StringArray:
@@ -117,6 +117,6 @@ func (t *Task) UpdateStatus(tx *gorm.DB, newStatus TaskStatus) error {
 	if !t.CanTransitionTo(newStatus) {
 		return fmt.Errorf("cannot transition from %s to %s", t.Status, newStatus)
 	}
-	
+
 	return tx.Model(t).Update("status", newStatus).Error
 }
