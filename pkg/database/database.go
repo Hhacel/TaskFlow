@@ -7,7 +7,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/hhace/taskflow/models"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -160,7 +159,3 @@ func Health() error {
 	return sqlDB.Ping()
 }
 
-// ParseUUID parses a string into a UUID
-func ParseUUID(s string) (uuid.UUID, error) {
-	return uuid.Parse(s)
-}
