@@ -30,7 +30,11 @@ func main() {
 
 	// Initialize services
 	taskRepo := database.NewTaskRepository(database.DB)
-	server := handlers.NewSchedulerServer(taskRepo)
+	server, err := handlers.NewSchedulerServer(taskRepo)
+	if err != nil {
+		slog.Error("Failed to create scheduler server", "error", err)
+		os.Exit(1)
+	}
 
 	// Setup routes
 	r := setupRoutes(server)

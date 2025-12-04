@@ -1,16 +1,4 @@
 services:
-  api-gateway:
-    build:
-      context: .
-      dockerfile: ./apps/api-gateway/Dockerfile
-    ports:
-      - "8080:8080"
-    environment:
-      - PORT=8080
-    depends_on:
-      - scheduler
-      - aggregator
-
   scheduler:
     build:
       context: .

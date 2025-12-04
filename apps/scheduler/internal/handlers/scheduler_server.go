@@ -1,27 +1,38 @@
 package handlers
 
 import (
+	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/hhace/taskflow/apps/scheduler/config"
 	"github.com/hhace/taskflow/apps/scheduler/internal/api"
 	"github.com/hhace/taskflow/models"
 	"github.com/hhace/taskflow/pkg/database"
 	"github.com/hhace/taskflow/pkg/tfutil"
+	"github.com/nats-io/nats.go"
 	"github.com/oapi-codegen/runtime/types"
 )
 
 // SchedulerServer implements the generated ServerInterface
 type SchedulerServer struct {
 	taskRepo *database.TaskRepository
+	natsConn *nats.Conn
 }
 
 // NewSchedulerServer creates a new scheduler server
-func NewSchedulerServer(taskRepo *database.TaskRepository) *SchedulerServer {
+func NewSchedulerServer(taskRepo *database.TaskRepository) (*SchedulerServer, error) {
+	nc, err := nats.Connect(nats.DefaultURL)
+	if err != nil {
+		slog.Error("Failed to connect to NATS", "error", err)
+		return nil, err
+	}
 	return &SchedulerServer{
 		taskRepo: taskRepo,
-	}
+		natsConn: nc,
+	}, nil
 }
 
 // GetHealth implements the health check endpoint
@@ -71,7 +82,11 @@ func (s *SchedulerServer) CreateTask(c *gin.Context) {
 		return
 	}
 
-	// TODO: Publish task to NATS queue here
+	// Publish task to NATS queue here
+	if err := s.publishTaskToQueue(task); err != nil {
+		slog.Error("Failed to publish task to queue", "taskId", task.ID, "error", err)
+	}
+	
 	slog.Info("Task created", "taskId", task.ID)
 
 	// Convert to API response
@@ -170,4 +185,18 @@ func (s *SchedulerServer) modelStatusToAPIStatus(status models.TaskStatus) api.T
 	default:
 		return api.TaskResponseStatusPending
 	}
+}
+
+func (s *SchedulerServer) publishTaskToQueue(task *models.Task) error {
+	taskJSON, err := json.Marshal(task)
+	if err != nil {
+		return fmt.Errorf("failed to marshal task to JSON: %w", err)
+	}
+
+	if err := s.natsConn.Publish(config.TASK_SCHEDULE_QUEUE_SUBJECT, taskJSON); err != nil {
+		return fmt.Errorf("failed to publish task to NATS: %w", err)
+	}
+
+	slog.Debug("Task published to queue", "taskId", task.ID, "subject", config.TASK_SCHEDULE_QUEUE_SUBJECT)
+	return nil
 }

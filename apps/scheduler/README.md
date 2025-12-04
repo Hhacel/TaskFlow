@@ -1,4 +1,6 @@
-# TaskFlow Scheduler API
+# TaskFlow Scheduler
+
+The Scheduler service is the main entry point for the TaskFlow system. It handles all incoming HTTP requests, authenticates users, validates input, and manages task scheduling and persistence.
 
 ## OpenAPI Code Generation
 
@@ -70,6 +72,37 @@ curl http://localhost:8081/api/v1/tasks?status=pending
 - `running` - Task is currently executing
 - `completed` - Task finished successfully
 - `failed` - Task failed during execution
+
+#### Task State Diagram
+```mermaid
+stateDiagram-v2
+    [*] --> pending: Task Created
+    pending --> running: Worker Picks Up Task
+    running --> completed: Execution Success
+    running --> failed: Execution Error
+    completed --> [*]
+    failed --> [*]
+    
+    note right of pending
+        Task is scheduled
+        but not yet running
+    end note
+    
+    note right of running
+        Task is currently
+        executing
+    end note
+    
+    note right of completed
+        Task finished
+        successfully
+    end note
+    
+    note right of failed
+        Task failed
+        during execution
+    end note
+```
 
 ### Cron Expression Format
 The schedule field uses standard cron expression format:

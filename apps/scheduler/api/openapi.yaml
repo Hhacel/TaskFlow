@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: TaskFlow Scheduler API
-  description: A microservice for managing scheduled tasks in the TaskFlow system
+  description: The main service for managing scheduled tasks in the TaskFlow system. This service handles authentication, request validation, task scheduling, and persistence.
   version: 1.0.0
   contact:
     name: TaskFlow API Support
@@ -23,7 +23,7 @@ paths:
       tags:
         - Health
       summary: Health check
-      description: Check the health status of the scheduler service
+      description: Check the health status of the Scheduler service
       operationId: getHealth
       responses:
         '200':
