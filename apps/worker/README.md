@@ -1,6 +1,6 @@
 # TaskFlow Worker
 
-The Worker service is responsible for executing scheduled tasks in the TaskFlow system. It consumes task messages from NATS queues, executes the commands, and publishes results back to the aggregator.
+The Worker service is responsible for executing scheduled tasks in the TaskFlow system. It consumes task messages from NATS queues, executes the commands, and publishes results back to the scheduler.
 
 ## Architecture
 

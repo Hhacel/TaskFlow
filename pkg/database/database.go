@@ -121,7 +121,8 @@ func Migrate() error {
 	// Auto migrate your models here
 	err := DB.AutoMigrate(
 		&models.Task{},
-		// Add other models here as you create them
+		&models.TaskExecutionResult{},
+		// Add other models here as needed
 	)
 
 	if err != nil {
@@ -130,14 +131,6 @@ func Migrate() error {
 
 	slog.Info("Database migration completed")
 	return nil
-}
-
-// Helper function to get environment variables with default values
-func getEnv(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
 }
 
 // Health checks database connection

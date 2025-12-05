@@ -39,7 +39,11 @@ func main() {
 		slog.Error("Failed to create task consumer", "error", err)
 		os.Exit(1)
 	}
-	defer taskConsumer.Stop()
+	defer func() {
+		if err := taskConsumer.Stop(); err != nil {
+			slog.Error("Failed to stop task consumer", "error", err)
+		}
+	}()
 
 	// Start consuming tasks
 	if err := taskConsumer.Start(); err != nil {

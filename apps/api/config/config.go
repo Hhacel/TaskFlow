@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"log/slog"
 	"os"
 	"time"
@@ -13,8 +14,6 @@ import (
 type Config struct {
 	Server   ServerConfig    `yaml:"server"`
 	Database database.Config `yaml:"database"`
-	NATS     NATSConfig      `yaml:"nats"`
-	GRPC     GRPCConfig      `yaml:"grpc"`
 	Logging  LoggingConfig   `yaml:"logging"`
 }
 
@@ -32,12 +31,6 @@ type NATSConfig struct {
 	MaxReconnects       int    `yaml:"max_reconnects"`
 }
 
-// GRPCConfig contains gRPC settings for notifier communication
-type GRPCConfig struct {
-	NotifierAddress string `yaml:"notifier_address"`
-	Timeout         int    `yaml:"timeout_seconds"`
-}
-
 // LoggingConfig contains logging settings
 type LoggingConfig struct {
 	Level  string `yaml:"level"`
@@ -48,26 +41,18 @@ type LoggingConfig struct {
 func DefaultConfig() *Config {
 	return &Config{
 		Server: ServerConfig{
-			Port: "8084",
+			Port: "8081",
 		},
 		Database: database.Config{
-			Host:     "postgres",
-			Port:     "5432",
-			User:     "taskflow",
-			Password: "taskflow",
-			Database: "taskflow",
-			SSLMode:  "disable",
-		},
-		NATS: NATSConfig{
-			URL:                 "nats://nats:4222",
-			TaskScheduleSubject: "tasks.schedule",
-			TaskResultSubject:   "tasks.results",
-			ReconnectWait:       2,
-			MaxReconnects:       60,
-		},
-		GRPC: GRPCConfig{
-			NotifierAddress: "notifier:8083",
-			Timeout:         10,
+			Host:                   "postgres",
+			Port:                   "5432",
+			User:                   "taskflow",
+			Password:               "taskflow",
+			Database:               "taskflow",
+			SSLMode:                "disable",
+			MaxOpenConns:           25,
+			MaxIdleConns:           5,
+			ConnMaxLifetimeMinutes: 60,
 		},
 		Logging: LoggingConfig{
 			Level:  "info",
@@ -82,30 +67,30 @@ func LoadConfig(filepath string) (*Config, error) {
 
 	// If no file specified, return default config
 	if filepath == "" {
-		slog.Info("No config file path provided, using defaults")
+		slog.Warn("No config file path provided, using defaults")
 		return config, nil
 	}
 
 	// Read the config file
 	data, err := os.ReadFile(filepath)
 	if err != nil {
-		slog.Warn("Could not read config file, using defaults", "path", filepath, "error", err)
+		slog.Warn("Could not read config file, using defaults", "file", filepath, "error", err)
 		return config, nil // Return defaults instead of error
 	}
 
 	// Parse YAML
 	if err := yaml.Unmarshal(data, config); err != nil {
-		slog.Warn("Could not parse config file, using defaults", "path", filepath, "error", err)
+		slog.Warn("Could not parse config file, using defaults", "file", filepath, "error", err)
 		return config, nil // Return defaults instead of error
 	}
 
-	slog.Info("Config loaded successfully", "path", filepath, "dbHost", config.Database.Host)
+	slog.Info("Config loaded successfully", "file", filepath, "dbHost", config.Database.Host)
 	return config, nil
 }
 
 // LoadConfigWithEnvOverrides loads config from file and applies environment variable overrides
 func LoadConfigWithEnvOverrides(filepath string) (*Config, error) {
-	slog.Debug("Loading config with env overrides", "path", filepath)
+	slog.Info("LoadConfigWithEnvOverrides called", "path", filepath)
 	config, err := LoadConfig(filepath)
 	if err != nil {
 		return nil, err
@@ -113,40 +98,33 @@ func LoadConfigWithEnvOverrides(filepath string) (*Config, error) {
 
 	// Override with environment variables if they exist
 	if port := os.Getenv("PORT"); port != "" {
-		slog.Debug("Overriding port with env var", "value", port)
+		slog.Info("Overriding port with env var", "port", port)
 		config.Server.Port = port
 	}
 
 	if dbHost := os.Getenv("DB_HOST"); dbHost != "" {
-		slog.Debug("Overriding DB host with env var", "value", dbHost)
+		slog.Info("Overriding DB host with env var", "dbHost", dbHost)
 		config.Database.Host = dbHost
 	}
 
 	if dbPort := os.Getenv("DB_PORT"); dbPort != "" {
-		slog.Debug("Overriding DB port with env var", "value", dbPort)
+		slog.Info("Overriding DB port with env var", "dbPort", dbPort)
 		config.Database.Port = dbPort
 	}
 
 	if dbUser := os.Getenv("DB_USER"); dbUser != "" {
+		slog.Info("Overriding DB user with env var", "dbUser", dbUser)
 		config.Database.User = dbUser
 	}
 
 	if dbPassword := os.Getenv("DB_PASSWORD"); dbPassword != "" {
+		slog.Info("Overriding DB password with env var")
 		config.Database.Password = dbPassword
 	}
 
 	if dbName := os.Getenv("DB_NAME"); dbName != "" {
+		slog.Info("Overriding DB name with env var", "dbName", dbName)
 		config.Database.Database = dbName
-	}
-
-	if natsURL := os.Getenv("NATS_URL"); natsURL != "" {
-		slog.Debug("Overriding NATS URL with env var", "value", natsURL)
-		config.NATS.URL = natsURL
-	}
-
-	if notifierAddr := os.Getenv("NOTIFIER_ADDRESS"); notifierAddr != "" {
-		slog.Debug("Overriding notifier address with env var", "value", notifierAddr)
-		config.GRPC.NotifierAddress = notifierAddr
 	}
 
 	if logLevel := os.Getenv("LOG_LEVEL"); logLevel != "" {
@@ -156,7 +134,48 @@ func LoadConfigWithEnvOverrides(filepath string) (*Config, error) {
 	return config, nil
 }
 
-// GetGRPCTimeout returns the gRPC timeout duration
-func (c *Config) GetGRPCTimeout() time.Duration {
-	return time.Duration(c.GRPC.Timeout) * time.Second
+// GetDSN returns the PostgreSQL connection string
+func (c *Config) GetDSN() string {
+	return fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
+		c.Database.Host,
+		c.Database.Port,
+		c.Database.User,
+		c.Database.Password,
+		c.Database.Database,
+		c.Database.SSLMode,
+	)
+}
+
+// GetConnMaxLifetime returns the connection max lifetime as a duration
+func (c *Config) GetConnMaxLifetime() time.Duration {
+	return time.Duration(c.Database.ConnMaxLifetimeMinutes) * time.Minute
+}
+
+// Validate checks if the configuration is valid
+func (c *Config) Validate() error {
+	if c.Server.Port == "" {
+		return fmt.Errorf("server port is required")
+	}
+
+	if c.Database.Host == "" {
+		return fmt.Errorf("database host is required")
+	}
+
+	if c.Database.User == "" {
+		return fmt.Errorf("database user is required")
+	}
+
+	if c.Database.Database == "" {
+		return fmt.Errorf("database name is required")
+	}
+
+	if c.Database.MaxOpenConns <= 0 {
+		return fmt.Errorf("max open connections must be positive")
+	}
+
+	if c.Database.MaxIdleConns <= 0 {
+		return fmt.Errorf("max idle connections must be positive")
+	}
+
+	return nil
 }

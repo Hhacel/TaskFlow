@@ -1,8 +1,8 @@
 services:
-  scheduler:
+  api:
     build:
       context: .
-      dockerfile: ./apps/scheduler/Dockerfile
+      dockerfile: ./apps/api/Dockerfile
     ports:
       - "8081:8081"
     environment:
@@ -11,7 +11,7 @@ services:
       - postgres
       - nats
     volumes:
-      - ./apps/scheduler/config.yaml:/app/config.yaml:ro
+      - ./apps/api/config.yaml:/app/config.yaml:ro
 
   worker:
     build:
@@ -37,17 +37,19 @@ services:
     depends_on:
       - nats
 
-  aggregator:
+  scheduler:
     build:
       context: .
-      dockerfile: ./apps/aggregator/Dockerfile
+      dockerfile: ./apps/scheduler/Dockerfile
     ports:
       - "8084:8084"
     environment:
-      - PORT=8084
-      - DB_HOST=postgres
+      - CONFIG_PATH=/app/config.yaml
     depends_on:
       - postgres
+      - nats
+    volumes:
+      - ./apps/scheduler/config.yaml:/app/config.yaml:ro
 
   postgres:
     image: postgres:15

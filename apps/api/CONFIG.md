@@ -142,22 +142,22 @@ scheduler:
 
 ### Using Config File
 ```yaml
-scheduler:
+api:
   environment:
     - CONFIG_PATH=/app/config.yaml
   volumes:
-    - ./apps/scheduler/config.yaml:/app/config.yaml:ro
+    - ./apps/api/config.yaml:/app/config.yaml:ro
 ```
 
 ### Hybrid Approach
 ```yaml
-scheduler:
+api:
   environment:
     - CONFIG_PATH=/app/config.yaml
     - PORT=9000  # Override config file
     - DB_PASSWORD=secret  # Override config file
   volumes:
-    - ./apps/scheduler/config.yaml:/app/config.yaml:ro
+    - ./apps/api/config.yaml:/app/config.yaml:ro
 ```
 
 ## Validation
