@@ -9,7 +9,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Config represents the aggregator configuration
+// Config represents the scheduler configuration
 type Config struct {
 	Server   ServerConfig    `yaml:"server"`
 	Database database.Config `yaml:"database"`

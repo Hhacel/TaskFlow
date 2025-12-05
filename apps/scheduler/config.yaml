@@ -1,4 +1,4 @@
-# Aggregator Configuration
+# Scheduler Configuration
 # This file can be overridden by environment variables
 
 server:

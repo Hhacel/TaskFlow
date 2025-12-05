@@ -68,29 +68,29 @@ curl http://localhost:8081/api/v1/tasks?status=pending
 ## Schema
 
 ### Task Statuses
-- `pending` - Task is scheduled but not yet running
-- `running` - Task is currently executing
+- `created` - Task has been created and is awaiting scheduling
+- `pending` - Task is scheduled and waiting to be processed
 - `completed` - Task finished successfully
 - `failed` - Task failed during execution
 
 #### Task State Diagram
 ```mermaid
 stateDiagram-v2
-    [*] --> pending: Task Created
-    pending --> running: Worker Picks Up Task
-    running --> completed: Execution Success
-    running --> failed: Execution Error
+    [*] --> created: Task Created
+    created --> pending: Task Scheduled
+    pending --> completed: Execution Success
+    pending --> failed: Execution Error
     completed --> [*]
     failed --> [*]
     
-    note right of pending
-        Task is scheduled
-        but not yet running
+    note right of created
+        Task has been created
+        and is awaiting scheduling
     end note
     
-    note right of running
-        Task is currently
-        executing
+    note right of pending
+        Task is scheduled
+        and waiting to be processed
     end note
     
     note right of completed

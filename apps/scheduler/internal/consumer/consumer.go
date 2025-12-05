@@ -73,7 +73,7 @@ func (c *ResultConsumer) Start() error {
 		return fmt.Errorf("failed to subscribe to result queue: %w", err)
 	}
 
-	slog.Info("Aggregator started consuming results",
+	slog.Info("Scheduler started consuming results",
 		"subject", c.config.NATS.TaskResultSubject)
 
 	return nil
