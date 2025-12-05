@@ -11,7 +11,7 @@ RUN go mod download
 COPY . .
 
 # Build the scheduler service
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o scheduler ./apps/scheduler/cmd/
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o scheduler ./apps/scheduler
 
 # Final stage
 FROM alpine:latest
@@ -25,7 +25,7 @@ WORKDIR /root/
 COPY --from=builder /app/scheduler .
 
 # Expose port
-EXPOSE 8081
+EXPOSE 8084
 
 # Run the scheduler service
 CMD ["./scheduler"]

@@ -133,14 +133,6 @@ func Migrate() error {
 	return nil
 }
 
-// Helper function to get environment variables with default values
-func getEnv(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
-}
-
 // Health checks database connection
 func Health() error {
 	if DB == nil {

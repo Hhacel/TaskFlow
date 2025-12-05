@@ -1,6 +1,6 @@
-# TaskFlow Scheduler
+# TaskFlow API
 
-The Scheduler service is the main entry point for the TaskFlow system. It handles all incoming HTTP requests, authenticates users, validates input, and manages task scheduling and persistence.
+The API service is the main entry point for the TaskFlow system. It handles all incoming HTTP requests, authenticates users, validates input, and manages task CRUD operations and persistence.
 
 ## OpenAPI Code Generation
 

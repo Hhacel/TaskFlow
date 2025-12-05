@@ -1,19 +1,15 @@
 package handlers
 
 import (
-	"encoding/json"
-	"fmt"
 	"log/slog"
 	"net/http"
-	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/hhace/taskflow/apps/scheduler/config"
-	"github.com/hhace/taskflow/apps/scheduler/internal/api"
+	"github.com/hhace/taskflow/apps/api/config"
+	"github.com/hhace/taskflow/apps/api/internal/api"
 	"github.com/hhace/taskflow/models"
 	"github.com/hhace/taskflow/pkg/database"
 	"github.com/hhace/taskflow/pkg/tfutil"
-	"github.com/nats-io/nats.go"
 	"github.com/oapi-codegen/runtime/types"
 )
 
@@ -21,37 +17,13 @@ import (
 type SchedulerServer struct {
 	config   *config.Config
 	taskRepo *database.TaskRepository
-	natsConn *nats.Conn
 }
 
 // NewSchedulerServer creates a new scheduler server
 func NewSchedulerServer(cfg *config.Config, taskRepo *database.TaskRepository) (*SchedulerServer, error) {
-	// Connect to NATS with reconnect options
-	opts := []nats.Option{
-		nats.ReconnectWait(time.Duration(cfg.NATS.ReconnectWait) * time.Second),
-		nats.MaxReconnects(cfg.NATS.MaxReconnects),
-		nats.DisconnectErrHandler(func(nc *nats.Conn, err error) {
-			if err != nil {
-				slog.Warn("NATS disconnected", "error", err)
-			}
-		}),
-		nats.ReconnectHandler(func(nc *nats.Conn) {
-			slog.Info("NATS reconnected", "url", nc.ConnectedUrl())
-		}),
-	}
-
-	nc, err := nats.Connect(cfg.NATS.URL, opts...)
-	if err != nil {
-		slog.Error("Failed to connect to NATS", "error", err)
-		return nil, err
-	}
-
-	slog.Info("Connected to NATS", "url", cfg.NATS.URL)
-
 	return &SchedulerServer{
 		config:   cfg,
 		taskRepo: taskRepo,
-		natsConn: nc,
 	}, nil
 }
 
@@ -102,11 +74,6 @@ func (s *SchedulerServer) CreateTask(c *gin.Context) {
 		return
 	}
 
-	// Publish task to NATS queue here
-	if err := s.publishTaskToQueue(task); err != nil {
-		slog.Error("Failed to publish task to queue", "taskId", task.ID, "error", err)
-	}
-	
 	slog.Info("Task created", "taskId", task.ID)
 
 	// Convert to API response
@@ -181,23 +148,21 @@ func (s *SchedulerServer) apiStatusToModelStatus(status api.GetTasksParamsStatus
 	switch status {
 	case api.GetTasksParamsStatusPending:
 		return models.TaskStatusPending
-	case api.GetTasksParamsStatusRunning:
-		return models.TaskStatusRunning
 	case api.GetTasksParamsStatusCompleted:
 		return models.TaskStatusCompleted
 	case api.GetTasksParamsStatusFailed:
 		return models.TaskStatusFailed
 	default:
-		return models.TaskStatusPending
+		return models.TaskStatusCreated
 	}
 }
 
 func (s *SchedulerServer) modelStatusToAPIStatus(status models.TaskStatus) api.TaskResponseStatus {
 	switch status {
+	case models.TaskStatusCreated:
+		return api.TaskResponseStatusPending
 	case models.TaskStatusPending:
 		return api.TaskResponseStatusPending
-	case models.TaskStatusRunning:
-		return api.TaskResponseStatusRunning
 	case models.TaskStatusCompleted:
 		return api.TaskResponseStatusCompleted
 	case models.TaskStatusFailed:
@@ -205,18 +170,4 @@ func (s *SchedulerServer) modelStatusToAPIStatus(status models.TaskStatus) api.T
 	default:
 		return api.TaskResponseStatusPending
 	}
-}
-
-func (s *SchedulerServer) publishTaskToQueue(task *models.Task) error {
-	taskJSON, err := json.Marshal(task)
-	if err != nil {
-		return fmt.Errorf("failed to marshal task to JSON: %w", err)
-	}
-
-	if err := s.natsConn.Publish(s.config.NATS.TaskScheduleSubject, taskJSON); err != nil {
-		return fmt.Errorf("failed to publish task to NATS: %w", err)
-	}
-
-	slog.Debug("Task published to queue", "taskId", task.ID, "subject", s.config.NATS.TaskScheduleSubject)
-	return nil
 }

@@ -7,9 +7,9 @@ import (
 	"syscall"
 
 	"github.com/gin-gonic/gin"
-	schedulerConfig "github.com/hhace/taskflow/apps/scheduler/config"
-	"github.com/hhace/taskflow/apps/scheduler/internal/api"
-	"github.com/hhace/taskflow/apps/scheduler/internal/handlers"
+	schedulerConfig "github.com/hhace/taskflow/apps/api/config"
+	"github.com/hhace/taskflow/apps/api/internal/api"
+	"github.com/hhace/taskflow/apps/api/internal/handlers"
 	"github.com/hhace/taskflow/pkg/database"
 )
 
@@ -30,8 +30,7 @@ func main() {
 
 	slog.Info("Configuration loaded",
 		"port", cfg.Server.Port,
-		"dbHost", cfg.Database.Host,
-		"natsURL", cfg.NATS.URL)
+		"dbHost", cfg.Database.Host)
 
 	// Initialize database connection
 	slog.Info("Initializing database connection")
@@ -62,21 +61,21 @@ func main() {
 
 	// Start server in a goroutine
 	go func() {
-		slog.Info("Scheduler service starting", "port", cfg.Server.Port)
+		slog.Info("API service starting", "port", cfg.Server.Port)
 		if err := r.Run(":" + cfg.Server.Port); err != nil {
-			slog.Error("Failed to start scheduler service", "error", err)
+			slog.Error("Failed to start API service", "error", err)
 			os.Exit(1)
 		}
 	}()
 
-	slog.Info("Scheduler started successfully")
+	slog.Info("API started successfully")
 
 	// Wait for interrupt signal to gracefully shutdown
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	slog.Info("Shutting down scheduler...")
+	slog.Info("Shutting down API...")
 }
 
 // setupRoutes configures all the routes using the generated API
@@ -94,9 +93,6 @@ func setupRoutes(server api.ServerInterface, cfg *schedulerConfig.Config) *gin.E
 				"host":     cfg.Database.Host,
 				"port":     cfg.Database.Port,
 				"database": cfg.Database.Database,
-			},
-			"nats": gin.H{
-				"url": cfg.NATS.URL,
 			},
 		})
 	})

@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/hhace/taskflow/apps/aggregator/config"
+	"github.com/hhace/taskflow/apps/scheduler/config"
 	"github.com/hhace/taskflow/models"
 	"github.com/nats-io/nats.go"
 	"gorm.io/gorm"
@@ -160,6 +160,11 @@ func (c *ResultConsumer) saveTaskResult(taskID uuid.UUID, result *TaskResult) er
 
 	slog.Debug("Task result saved", "taskId", taskID, "resultId", taskResult.ID)
 	return nil
+}
+
+// GetNATSConnection returns the NATS connection
+func (c *ResultConsumer) GetNATSConnection() *nats.Conn {
+	return c.natsConn
 }
 
 // Stop gracefully shuts down the consumer

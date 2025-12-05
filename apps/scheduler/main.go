@@ -10,8 +10,9 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/hhace/taskflow/apps/aggregator/config"
-	"github.com/hhace/taskflow/apps/aggregator/internal/consumer"
+	"github.com/hhace/taskflow/apps/scheduler/config"
+	"github.com/hhace/taskflow/apps/scheduler/internal/consumer"
+	"github.com/hhace/taskflow/apps/scheduler/internal/scheduler"
 	"github.com/hhace/taskflow/pkg/database"
 )
 
@@ -34,21 +35,21 @@ func main() {
 		"natsURL", cfg.NATS.URL)
 
 	// Connect to database
-	err = database.Connect(&cfg.Database, 10)
-	if err != nil {
+	if err := database.Connect(cfg.Database, 10); err != nil {
 		slog.Error("Failed to connect to database", "error", err)
 		os.Exit(1)
 	}
+	defer database.Close()
 	slog.Info("Database connected successfully")
 
-	// Auto-migrate the task execution results table
-	if err := database.AutoMigrate(db); err != nil {
-		slog.Error("Failed to auto-migrate database", "error", err)
+	// migrate the task execution results table
+	if err := database.Migrate(); err != nil {
+		slog.Error("Failed to migrate database", "error", err)
 		os.Exit(1)
 	}
 
 	// Create and start result consumer
-	resultConsumer, err := consumer.NewResultConsumer(cfg, db)
+	resultConsumer, err := consumer.NewResultConsumer(cfg, database.DB)
 	if err != nil {
 		slog.Error("Failed to create result consumer", "error", err)
 		os.Exit(1)
@@ -56,6 +57,13 @@ func main() {
 
 	if err := resultConsumer.Start(); err != nil {
 		slog.Error("Failed to start result consumer", "error", err)
+		os.Exit(1)
+	}
+
+	// Create and start task scheduler
+	taskScheduler := scheduler.NewTaskScheduler(cfg, database.DB, resultConsumer.GetNATSConnection())
+	if err := taskScheduler.Start(); err != nil {
+		slog.Error("Failed to start task scheduler", "error", err)
 		os.Exit(1)
 	}
 
@@ -113,6 +121,8 @@ func main() {
 	if err := resultConsumer.Stop(); err != nil {
 		slog.Error("Failed to stop result consumer", "error", err)
 	}
+
+	taskScheduler.Stop()
 
 	slog.Info("Aggregator stopped")
 }

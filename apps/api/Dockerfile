@@ -10,8 +10,8 @@ RUN go mod download
 # Copy all source code
 COPY . .
 
-# Build the aggregator service
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o aggregator ./apps/aggregator
+# Build the api service
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o api ./apps/api/cmd/
 
 # Final stage
 FROM alpine:latest
@@ -22,10 +22,10 @@ RUN apk --no-cache add ca-certificates
 WORKDIR /root/
 
 # Copy the binary from builder stage
-COPY --from=builder /app/aggregator .
+COPY --from=builder /app/api .
 
 # Expose port
-EXPOSE 8084
+EXPOSE 8081
 
-# Run the aggregator service
-CMD ["./aggregator"]
+# Run the api service
+CMD ["./api"]

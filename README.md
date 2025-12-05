@@ -16,11 +16,11 @@ flowchart LR
     %% Row 1: User Input
     User["User<br/>Client"] 
     
-    %% Row 2: Scheduler
-    SCH["Scheduler<br/>apps/scheduler"]
+    %% Row 2: API
+    API["API<br/>apps/api"]
     
     %% Row 3: Core Services (horizontal alignment)
-    AGG["Aggregator<br/>apps/aggregator"]
+    SCH["Scheduler<br/>apps/scheduler"]
     NOT["Notifier<br/>apps/notifier"]
     
     %% Row 4: Worker
@@ -36,17 +36,16 @@ flowchart LR
     MQ_Result{{"Result Queue"}}
 
     %% Main Flow (numbered for clarity)
-    User -->|"1. Request"| SCH
-    SCH -->|"2. Store"| DB
-    SCH -->|"3. Queue"| MQ_Task
+    User -->|"1. Request"| API
+    API -->|"2. Store"| DB
+    SCH -->|"3. Load & Queue"| MQ_Task
     MQ_Task -->|"4. Consume"| WRK
     WRK -->|"5. Execute"| External
     WRK -->|"6. Result"| MQ_Result
-    MQ_Result -->|"7. Process"| AGG
-    AGG -->|"8. Update"| DB
-    AGG -->|"9. Status"| SCH
-    AGG -->|"10. gRPC Notify"| NOT
-    NOT -->|"11. Alert"| Email
+    MQ_Result -->|"7. Process"| SCH
+    SCH -->|"8. Update"| DB
+    SCH -->|"9. gRPC Notify"| NOT
+    NOT -->|"10. Alert"| Email
 
     %% Styling
     classDef service fill:#e3f2fd,stroke:#1976d2,stroke-width:2px,color:#000000
@@ -79,8 +78,8 @@ erDiagram
 ### 🚀 Microservices (`apps/`)
 Each service is a specialized, independently deployable component:
 
-#### 📅 **Scheduler** (`apps/scheduler`) 
-> *The system's front door and orchestration brain*
+#### 📅 **API** (`apps/api`) 
+> *The system's front door for task management*
 
 - **Authentication & Authorization** - JWT validation and user management
 - **Request Validation** - Input sanitization and schema validation  
@@ -88,8 +87,15 @@ Each service is a specialized, independently deployable component:
 - **RESTful API** - HTTP endpoints for all task operations
 - **Task Validation** - Business logic and constraint checking
 - **Persistence Management** - Database operations and state tracking
+
+#### ⏰ **Scheduler** (`apps/scheduler`)
+> *The orchestration brain and result aggregator*
+
+- **Cron-based Scheduling** - Automatic task triggering based on schedules
 - **Queue Publishing** - Message broker integration for task dispatch
-- **Scheduling Logic** - Cron-based and event-driven task triggering
+- **Result Processing** - Task outcome analysis and storage
+- **Status Management** - Real-time state updates and history tracking
+- **Dynamic Task Loading** - Periodic refresh of scheduled tasks from database
 
 #### ⚡ **Worker** (`apps/worker`)
 > *The execution engine*
@@ -98,14 +104,6 @@ Each service is a specialized, independently deployable component:
 - **Task Execution** - Pluggable task handlers for diverse workloads
 - **Result Publishing** - Status updates and output data management
 - **Error Handling** - Retry logic and failure recovery mechanisms
-
-#### 📈 **Aggregator** (`apps/aggregator`)
-> *The data consolidation hub*
-
-- **Result Processing** - Task outcome analysis and storage
-- **Status Management** - Real-time state updates and history tracking
-- **API Services** - RESTful endpoints for status queries
-- **Event Triggering** - Notification and alerting coordination
 
 #### 🔔 **Notifier** (`apps/notifier`)
 > *The communication gateway*

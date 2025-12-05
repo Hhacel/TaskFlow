@@ -136,14 +136,14 @@ func (r *TaskRepository) GetTasksUpdatedAfter(after time.Time) ([]models.Task, e
 	return tasks, err
 }
 
+// GetCreatedTasks retrieves all created tasks
+func (r *TaskRepository) GetCreatedTasks() ([]models.Task, error) {
+	return r.GetByStatus(models.TaskStatusCreated, 0, 0)
+}
+
 // GetPendingTasks retrieves all pending tasks
 func (r *TaskRepository) GetPendingTasks() ([]models.Task, error) {
 	return r.GetByStatus(models.TaskStatusPending, 0, 0)
-}
-
-// GetRunningTasks retrieves all running tasks
-func (r *TaskRepository) GetRunningTasks() ([]models.Task, error) {
-	return r.GetByStatus(models.TaskStatusRunning, 0, 0)
 }
 
 // Transaction executes multiple operations in a transaction
