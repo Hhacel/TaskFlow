@@ -11,7 +11,7 @@ RUN go mod download
 COPY . .
 
 # Build the worker service
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o worker ./apps/worker
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o worker ./apps/worker/cmd/
 
 # Final stage
 FROM alpine:latest

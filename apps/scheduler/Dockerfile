@@ -11,7 +11,7 @@ RUN go mod download
 COPY . .
 
 # Build the scheduler service
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o scheduler ./apps/scheduler
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o scheduler ./apps/scheduler/cmd/
 
 # Final stage
 FROM alpine:latest
