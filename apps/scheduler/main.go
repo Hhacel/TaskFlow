@@ -94,21 +94,21 @@ func main() {
 	}
 
 	go func() {
-		slog.Info("Aggregator HTTP server starting", "port", cfg.Server.Port)
+		slog.Info("Scheduler HTTP server starting", "port", cfg.Server.Port)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			slog.Error("Failed to start HTTP server", "error", err)
 			os.Exit(1)
 		}
 	}()
 
-	slog.Info("Aggregator started successfully")
+	slog.Info("Scheduler started successfully")
 
 	// Wait for interrupt signal to gracefully shutdown
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	slog.Info("Shutting down aggregator...")
+	slog.Info("Shutting down scheduler...")
 
 	// Graceful shutdown
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -124,5 +124,5 @@ func main() {
 
 	taskScheduler.Stop()
 
-	slog.Info("Aggregator stopped")
+	slog.Info("Scheduler stopped")
 }
