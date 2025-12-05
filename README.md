@@ -4,7 +4,7 @@
 
 [![Go](https://img.shields.io/badge/Go-1.25.4+-00ADD8?style=flat-square&logo=go)](https://golang.org/)
 
-TaskFlow is a **production-ready microservices ecosystem** built in Go for scheduling, executing, and monitoring distributed tasks. Designed with **scalability**, **resilience**, and **observability** at its core, using NATS for asynchronous task queuing and gRPC for synchronous inter-service communication (Aggregator→Notifier).
+TaskFlow is a **production-ready microservices ecosystem** built in Go for scheduling, executing, and monitoring distributed tasks. Designed with **scalability**, **resilience**, and **observability** at its core, using NATS for asynchronous task queuing and gRPC for synchronous inter-service communication (Scheduler→Notifier).
 
 ## 🏗️ High-Level Architecture
 
@@ -53,7 +53,7 @@ flowchart LR
     classDef external fill:#e8f5e8,stroke:#388e3c,stroke-width:2px,color:#000000
     classDef support fill:#fff3e0,stroke:#f57c00,stroke-width:2px,color:#000000
     
-    class SCH,AGG,NOT,WRK service
+    class API,SCH,NOT,WRK service
     class DB,MQ_Task,MQ_Result data
     class User,External,Email external
 ```
@@ -67,7 +67,7 @@ erDiagram
         UUID id PK
         string schedule
         string[] command
-        string status "pending, running, completed, failed"
+        string status "created, pending, completed, failed"
         timestamp created_at
         timestamp updated_at
     }
@@ -128,7 +128,7 @@ Reusable components across all services:
 ### 🔌 Integration Layer
 
 #### 📋 **Protocol Definitions** (`proto/`)
-> *gRPC contracts for Aggregator→Notifier communication*
+> *gRPC contracts for Scheduler→Notifier communication*
 
 - **gRPC Service Definitions** - Type-safe notification API specifications
 - **Message Schemas** - Structured notification event contracts
@@ -162,16 +162,17 @@ User Request → Authentication → Scheduling → Persistence → Execution →
 | Step | Component | Action | Description |
 |------|-----------|--------|-------------|
 | **1** | 👤 **User** | `HTTP Request` | Client submits task creation request |
-| **2** | 📅 **Scheduler** | `Authentication` | JWT validation via `pkg/auth` |
-| **3** | 📅 **Scheduler** | `Validate & Store` | Task validation, ID assignment, DB persistence (`pending` status) |
-| **4** | 📅 **Scheduler** | `Queue Dispatch` | Publish task message to **Task Queue** |
-| **5** | ⚡ **Worker** | `Consume & Execute` | Pick up task, update status to `running`, execute business logic |
-| **6** | ⚡ **Worker** | `External Integration` | Call external APIs, process data, perform work |
-| **7** | ⚡ **Worker** | `Publish Result` | Send outcome (success/failure/logs) to **Result Queue** |
-| **8** | 📈 **Aggregator** | `Process Result` | Consume result, update final status (`completed`/`failed`) |
-| **9** | 📈 **Aggregator** | `Store Logs` | Persist execution logs and task history |
-| **10** | 📈 **Aggregator** | `gRPC Call` | Send notification request to Notifier via gRPC (synchronous, type-safe) |
-| **11** | 🔔 **Notifier** | `Send Alert` | Deliver notifications via email, Slack, webhooks |
+| **2** | 🌐 **API** | `Authentication` | JWT validation via `pkg/auth` |
+| **3** | 🌐 **API** | `Validate & Store` | Task validation, ID assignment, DB persistence (`created` status) |
+| **4** | ⏰ **Scheduler** | `Load & Schedule` | Periodically loads `created` tasks and schedules via cron |
+| **5** | ⏰ **Scheduler** | `Queue Dispatch` | Publish task message to **Task Queue** when due, update to `pending` |
+| **6** | ⚡ **Worker** | `Consume & Execute` | Pick up task, execute business logic |
+| **7** | ⚡ **Worker** | `External Integration` | Call external APIs, process data, perform work |
+| **8** | ⚡ **Worker** | `Publish Result` | Send outcome (success/failure/logs) to **Result Queue** |
+| **9** | ⏰ **Scheduler** | `Process Result` | Consume result, update final status (`completed`/`failed`) |
+| **10** | ⏰ **Scheduler** | `Store Logs` | Persist execution logs and task history |
+| **11** | ⏰ **Scheduler** | `gRPC Call` | Send notification request to Notifier via gRPC (synchronous, type-safe) |
+| **12** | 🔔 **Notifier** | `Send Alert` | Deliver notifications via email, Slack, webhooks |
 
 ### 🔍 Continuous Monitoring
 

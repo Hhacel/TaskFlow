@@ -15,7 +15,7 @@ go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
 
 ### Generate API Code
 
-From the scheduler directory, run:
+From the api directory, run:
 ```bash
 # Generate all API code (types, server interfaces)
 make generate
