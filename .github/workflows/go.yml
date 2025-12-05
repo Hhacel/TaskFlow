@@ -31,13 +31,13 @@ jobs:
       run: go build -v ./apps/api/cmd/
 
     - name: Build Scheduler Service
-      run: go build -v ./apps/scheduler/
+      run: go build -v ./apps/scheduler/cmd/
 
     - name: Build Worker Service
-      run: go build -v ./apps/worker/
+      run: go build -v ./apps/worker/cmd/
 
     - name: Build Notifier Service
-      run: go build -v ./apps/notifier/
+      run: go build -v ./apps/notifier/cmd/
 
     - name: Build Shared Packages
       run: go build -v ./pkg/...

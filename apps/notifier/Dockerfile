@@ -11,7 +11,7 @@ RUN go mod download
 COPY . .
 
 # Build the notifier service
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o notifier ./apps/notifier
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o notifier ./apps/notifier/cmd/
 
 # Final stage
 FROM alpine:latest
