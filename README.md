@@ -61,7 +61,7 @@ flowchart LR
 ### 📋 DB Schema
 ```mermaid
 erDiagram
-    tasks
+    tasks ||--o{ task_execution_results: ""
 
     tasks {
         UUID id PK
@@ -72,6 +72,15 @@ erDiagram
         timestamp updated_at
     }
 
+    task_execution_results {
+        UUID id PK
+        UUID task_id FK
+        boolean success
+        string output
+        string error
+        timestamp executed_at
+        int duration_ms
+    }
 ```
 ### 🧩 Core Components
 
