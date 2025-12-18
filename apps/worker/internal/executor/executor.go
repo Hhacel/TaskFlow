@@ -22,20 +22,11 @@ func NewTaskExecutor(timeout time.Duration) *TaskExecutor {
 	}
 }
 
-// ExecutionResult represents the result of a task execution
-type ExecutionResult struct {
-	TaskID    string
-	Success   bool
-	Output    string
-	Error     string
-	StartTime time.Time
-	EndTime   time.Time
-}
 
 // Execute runs the task command and returns the result
-func (e *TaskExecutor) Execute(task *models.Task) *ExecutionResult {
-	result := &ExecutionResult{
-		TaskID:    task.ID.String(),
+func (e *TaskExecutor) Execute(task *models.Task) *models.TaskExecutionResult {
+	result := &models.TaskExecutionResult{
+		TaskID:    task.ID,
 		StartTime: time.Now(),
 	}
 

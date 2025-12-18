@@ -94,30 +94,9 @@ func (c *TaskConsumer) handleTask(msg *nats.Msg) {
 	slog.Info("Task completed and result published", "taskId", task.ID, "success", result.Success)
 }
 
-// TaskResult represents the result message sent to aggregator
-type TaskResult struct {
-	TaskID    string    `json:"task_id"`
-	Success   bool      `json:"success"`
-	Output    string    `json:"output"`
-	Error     string    `json:"error,omitempty"`
-	StartTime time.Time `json:"start_time"`
-	EndTime   time.Time `json:"end_time"`
-	Duration  string    `json:"duration"`
-}
-
 // publishResult sends the execution result to the results queue
-func (c *TaskConsumer) publishResult(result *executor.ExecutionResult) error {
-	taskResult := TaskResult{
-		TaskID:    result.TaskID,
-		Success:   result.Success,
-		Output:    result.Output,
-		Error:     result.Error,
-		StartTime: result.StartTime,
-		EndTime:   result.EndTime,
-		Duration:  result.EndTime.Sub(result.StartTime).String(),
-	}
-
-	resultJSON, err := json.Marshal(taskResult)
+func (c *TaskConsumer) publishResult(result *models.TaskExecutionResult) error {
+	resultJSON, err := json.Marshal(result)
 	if err != nil {
 		return fmt.Errorf("failed to marshal task result: %w", err)
 	}

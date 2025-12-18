@@ -49,8 +49,8 @@ func main() {
 	}
 
 	// Initialize services
-	taskRepo := database.NewTaskRepository(database.DB)
-	server, err := handlers.NewSchedulerServer(cfg, taskRepo)
+	repo := database.NewRepository(database.DB)
+	server, err := handlers.NewSchedulerServer(cfg, repo)
 	if err != nil {
 		slog.Error("Failed to create scheduler server", "error", err)
 		os.Exit(1)

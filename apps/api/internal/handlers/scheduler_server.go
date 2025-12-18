@@ -16,14 +16,14 @@ import (
 // SchedulerServer implements the generated ServerInterface
 type SchedulerServer struct {
 	config   *config.Config
-	taskRepo *database.TaskRepository
+	repo *database.Repository
 }
 
 // NewSchedulerServer creates a new scheduler server
-func NewSchedulerServer(cfg *config.Config, taskRepo *database.TaskRepository) (*SchedulerServer, error) {
+func NewSchedulerServer(cfg *config.Config, repo *database.Repository) (*SchedulerServer, error) {
 	return &SchedulerServer{
 		config:   cfg,
-		taskRepo: taskRepo,
+		repo: repo,
 	}, nil
 }
 
@@ -65,7 +65,7 @@ func (s *SchedulerServer) CreateTask(c *gin.Context) {
 		Status:   models.TaskStatusPending,
 	}
 
-	if err := s.taskRepo.Create(task); err != nil {
+	if err := s.repo.CreateTask(task); err != nil {
 		slog.Error("Failed to create task", "error", err)
 		response := api.ErrorResponse{
 			Error: tfutil.StringPtr("Failed to create task"),
@@ -83,7 +83,7 @@ func (s *SchedulerServer) CreateTask(c *gin.Context) {
 
 // GetTask implements task retrieval by ID
 func (s *SchedulerServer) GetTask(c *gin.Context, id types.UUID) {
-	task, err := s.taskRepo.GetByID(id)
+	task, err := s.repo.GetTaskByID(id)
 	if err != nil {
 		response := api.ErrorResponse{
 			Error: tfutil.StringPtr("Task not found"),
@@ -104,9 +104,9 @@ func (s *SchedulerServer) GetTasks(c *gin.Context, params api.GetTasksParams) {
 	if params.Status != nil {
 		// Convert API status to models status
 		status := s.apiStatusToModelStatus(*params.Status)
-		tasks, err = s.taskRepo.GetByStatus(status, 50, 0)
+		tasks, err = s.repo.GetTasksByStatus(status, 50, 0)
 	} else {
-		tasks, err = s.taskRepo.GetAll(50, 0)
+		tasks, err = s.repo.GetAllTasks(50, 0)
 	}
 
 	if err != nil {
