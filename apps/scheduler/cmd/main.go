@@ -14,6 +14,7 @@ import (
 	"github.com/hhace/taskflow/apps/scheduler/internal/consumer"
 	"github.com/hhace/taskflow/apps/scheduler/internal/scheduler"
 	"github.com/hhace/taskflow/pkg/database"
+	"github.com/nats-io/nats.go"
 )
 
 func main() {
@@ -34,22 +35,47 @@ func main() {
 		"dbHost", cfg.Database.Host,
 		"natsURL", cfg.NATS.URL)
 
+	// Connect to NATS
+	opts := []nats.Option{
+		nats.ReconnectWait(time.Duration(cfg.NATS.ReconnectWait) * time.Second),
+		nats.MaxReconnects(cfg.NATS.MaxReconnects),
+		nats.DisconnectErrHandler(func(nc *nats.Conn, err error) {
+			if err != nil {
+				slog.Warn("NATS disconnected", "error", err)
+			}
+		}),
+		nats.ReconnectHandler(func(nc *nats.Conn) {
+			slog.Info("NATS reconnected", "url", nc.ConnectedUrl())
+		}),
+	}
+
+	nc, err := nats.Connect(cfg.NATS.URL, opts...)
+	if err != nil {
+		slog.Error("Failed to connect to NATS", "error", err)
+		os.Exit(1)
+	}
+
+	slog.Info("Connected to NATS", "url", cfg.NATS.URL)
+
 	// Connect to database
-	if err := database.Connect(cfg.Database, 10); err != nil {
+	db, err := database.Connect(cfg.Database, 10)
+	if err != nil {
 		slog.Error("Failed to connect to database", "error", err)
 		os.Exit(1)
 	}
-	defer database.Close()
+	defer database.Close(db)
 	slog.Info("Database connected successfully")
 
 	// migrate the task execution results table
-	if err := database.Migrate(); err != nil {
+	if err := database.Migrate(db); err != nil {
 		slog.Error("Failed to migrate database", "error", err)
 		os.Exit(1)
 	}
 
+	repo := database.NewRepository(db)
+
 	// Create and start result consumer
-	resultConsumer, err := consumer.NewResultConsumer(cfg, database.DB)
+	resultConsumer, err := consumer.NewResultConsumer(cfg, repo, nc)
 	if err != nil {
 		slog.Error("Failed to create result consumer", "error", err)
 		os.Exit(1)
@@ -61,7 +87,7 @@ func main() {
 	}
 
 	// Create and start task scheduler
-	taskScheduler := scheduler.NewTaskScheduler(cfg, database.DB, resultConsumer.GetNATSConnection())
+	taskScheduler := scheduler.NewTaskScheduler(cfg, repo, resultConsumer.GetNATSConnection())
 	if err := taskScheduler.Start(); err != nil {
 		slog.Error("Failed to start task scheduler", "error", err)
 		os.Exit(1)

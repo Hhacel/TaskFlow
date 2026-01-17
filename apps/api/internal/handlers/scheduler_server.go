@@ -16,35 +16,15 @@ import (
 // SchedulerServer implements the generated ServerInterface
 type SchedulerServer struct {
 	config   *config.Config
-	repo *database.Repository
+	repo     database.RepositoryInterface
 }
 
 // NewSchedulerServer creates a new scheduler server
 func NewSchedulerServer(cfg *config.Config, repo *database.Repository) (*SchedulerServer, error) {
 	return &SchedulerServer{
-		config:   cfg,
-		repo: repo,
+		config: cfg,
+		repo: 	repo,
 	}, nil
-}
-
-// GetHealth implements the health check endpoint
-func (s *SchedulerServer) GetHealth(c *gin.Context) {
-	if err := database.Health(); err != nil {
-		response := api.HealthResponse{
-			Status:  tfutil.ToPtr(api.Unhealthy),
-			Service: tfutil.StringPtr("scheduler"),
-			Error:   tfutil.StringPtr("database connection failed"),
-		}
-		c.JSON(http.StatusServiceUnavailable, response)
-		return
-	}
-
-	response := api.HealthResponse{
-		Status:   tfutil.ToPtr(api.Healthy),
-		Service:  tfutil.StringPtr("scheduler"),
-		Database: tfutil.StringPtr("connected"),
-	}
-	c.JSON(http.StatusOK, response)
 }
 
 // CreateTask implements task creation

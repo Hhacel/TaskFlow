@@ -13,9 +13,6 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-// DB is the global database instance
-var DB *gorm.DB
-
 // Config holds database configuration
 type Config struct {
 	Host                   string `yaml:"host"`
@@ -30,7 +27,7 @@ type Config struct {
 }
 
 // Connect establishes connection to PostgreSQL database with retry logic
-func Connect(config Config, maxRetries int) error {
+func Connect(config Config, maxRetries int) (*gorm.DB, error) {
 	dsn := fmt.Sprintf(
 		"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
 		config.Host, config.Port, config.User, config.Password, config.Database, config.SSLMode,
@@ -49,15 +46,15 @@ func Connect(config Config, maxRetries int) error {
 
 	// Simple retry logic with fixed delay
 	var err error
-
+	var db *gorm.DB
 	for i := 0; i < maxRetries; i++ {
-		DB, err = gorm.Open(postgres.Open(dsn), &gorm.Config{
+		db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{
 			Logger: gormLogger,
 		})
 
 		if err == nil {
 			// Test the connection
-			if sqlDB, dbErr := DB.DB(); dbErr == nil && sqlDB.Ping() == nil {
+			if sqlDB, dbErr := db.DB(); dbErr == nil && sqlDB.Ping() == nil {
 				break
 			}
 		}
@@ -71,13 +68,13 @@ func Connect(config Config, maxRetries int) error {
 	}
 
 	if err != nil {
-		return fmt.Errorf("failed to connect to database after %d retries: %w", maxRetries, err)
+		return nil, fmt.Errorf("failed to connect to database after %d retries: %w", maxRetries, err)
 	}
 
 	// Configure connection pool
-	sqlDB, err := DB.DB()
+	sqlDB, err := db.DB()
 	if err != nil {
-		return fmt.Errorf("failed to get database instance: %w", err)
+		return nil, fmt.Errorf("failed to get database instance: %w", err)
 	}
 
 	// Connection pool settings
@@ -90,16 +87,17 @@ func Connect(config Config, maxRetries int) error {
 		"database", config.Database,
 		"maxOpenConns", config.MaxOpenConns,
 		"maxIdleConns", config.MaxIdleConns)
-	return nil
+		
+	return db, nil
 }
 
 // Close closes the database connection
-func Close() error {
-	if DB == nil {
+func Close(db *gorm.DB) error {
+	if db == nil {
 		return nil
 	}
 
-	sqlDB, err := DB.DB()
+	sqlDB, err := db.DB()
 	if err != nil {
 		return err
 	}
@@ -108,18 +106,18 @@ func Close() error {
 }
 
 // Migrate runs auto migration for all models
-func Migrate() error {
-	if DB == nil {
+func Migrate(db *gorm.DB) error {
+	if db == nil {
 		return fmt.Errorf("database not connected")
 	}
 
 	// Enable UUID extension for PostgreSQL
-	if err := DB.Exec("CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\"").Error; err != nil {
+	if err := db.Exec("CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\"").Error; err != nil {
 		return fmt.Errorf("failed to create uuid extension: %w", err)
 	}
 
 	// Auto migrate your models here
-	err := DB.AutoMigrate(
+	err := db.AutoMigrate(
 		&models.Task{},
 		&models.TaskExecutionResult{},
 		// Add other models here as needed
@@ -134,12 +132,12 @@ func Migrate() error {
 }
 
 // Health checks database connection
-func Health() error {
-	if DB == nil {
+func Health(db *gorm.DB) error {
+	if db == nil {
 		return fmt.Errorf("database not connected")
 	}
 
-	sqlDB, err := DB.DB()
+	sqlDB, err := db.DB()
 	if err != nil {
 		return err
 	}

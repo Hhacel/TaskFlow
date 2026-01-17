@@ -4,50 +4,35 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"time"
 
 	"github.com/hhace/taskflow/apps/scheduler/config"
 	"github.com/hhace/taskflow/models"
 	"github.com/hhace/taskflow/pkg/database"
 	"github.com/nats-io/nats.go"
-	"gorm.io/gorm"
 )
 
 // ResultConsumer handles consuming task results from NATS queue
 type ResultConsumer struct {
 	config   *config.Config
 	natsConn *nats.Conn
-	db       *gorm.DB
+	repo     database.RepositoryInterface
 	sub      *nats.Subscription
 }
 
 // NewResultConsumer creates a new result consumer
-func NewResultConsumer(cfg *config.Config, db *gorm.DB) (*ResultConsumer, error) {
-	// Connect to NATS with reconnect options
-	opts := []nats.Option{
-		nats.ReconnectWait(time.Duration(cfg.NATS.ReconnectWait) * time.Second),
-		nats.MaxReconnects(cfg.NATS.MaxReconnects),
-		nats.DisconnectErrHandler(func(nc *nats.Conn, err error) {
-			if err != nil {
-				slog.Warn("NATS disconnected", "error", err)
-			}
-		}),
-		nats.ReconnectHandler(func(nc *nats.Conn) {
-			slog.Info("NATS reconnected", "url", nc.ConnectedUrl())
-		}),
+func NewResultConsumer(cfg *config.Config, repo database.RepositoryInterface, nc *nats.Conn) (*ResultConsumer, error) {
+	if nc == nil {
+		return nil, fmt.Errorf("NATS connection is nil")
 	}
 
-	nc, err := nats.Connect(cfg.NATS.URL, opts...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to NATS: %w", err)
+	if repo == nil {
+		return nil, fmt.Errorf("database connection is nil")
 	}
-
-	slog.Info("Connected to NATS", "url", cfg.NATS.URL)
 
 	return &ResultConsumer{
 		config:   cfg,
 		natsConn: nc,
-		db:       db,
+		repo:     repo,
 	}, nil
 }
 
@@ -81,22 +66,21 @@ func (c *ResultConsumer) handleResult(msg *nats.Msg) {
 
 	slog.Info("Processing result", "taskId", result.TaskID, "success", result.Success)
 
-	repo := database.NewRepository(c.db)
 	// Update task status in database
 	if result.Error == "" && result.Success == true {
-		if err := repo.UpdateTaskStatus(result.TaskID, models.TaskStatusCompleted); err != nil {
+		if err := c.repo.UpdateTaskStatus(result.TaskID, models.TaskStatusCompleted); err != nil {
 			slog.Error("Failed to update task status", "taskId", result.TaskID, "error", err)
 			return
 		}
 	} else {
-		if err := repo.UpdateTaskStatus(result.TaskID, models.TaskStatusFailed); err != nil {
+		if err := c.repo.UpdateTaskStatus(result.TaskID, models.TaskStatusFailed); err != nil {
 			slog.Error("Failed to update task status", "taskId", result.TaskID, "error", err)
 			return
 		}
 	}
 
 	// Save task result in database
-	if err := repo.CreateTaskResult(&result); err != nil {
+	if err := c.repo.CreateTaskResult(&result); err != nil {
 		slog.Error("Failed to save task result", "taskId", result.TaskID, "error", err)
 		return
 	}

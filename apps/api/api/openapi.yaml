@@ -18,35 +18,6 @@ servers:
     description: Production server
 
 paths:
-  /health:
-    get:
-      tags:
-        - Health
-      summary: Health check
-      description: Check the health status of the Scheduler service
-      operationId: getHealth
-      responses:
-        '200':
-          description: Service is healthy
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HealthResponse'
-              example:
-                status: healthy
-                service: scheduler
-                database: connected
-        '503':
-          description: Service is unhealthy
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HealthResponse'
-              example:
-                status: unhealthy
-                service: scheduler
-                error: database connection failed
-
   /api/v1/tasks:
     get:
       tags:

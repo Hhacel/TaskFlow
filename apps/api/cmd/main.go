@@ -35,21 +35,23 @@ func main() {
 	// Initialize database connection
 	slog.Info("Initializing database connection")
 
-	if err := database.Connect(cfg.Database, 10); err != nil {
+	db, err := database.Connect(cfg.Database, 10)
+
+	if err != nil {
 		slog.Error("Failed to connect to database", "error", err)
 		os.Exit(1)
 	}
-	defer database.Close()
+	defer database.Close(db)
 
 	// Run database migrations
 	slog.Info("Running database migrations")
-	if err := database.Migrate(); err != nil {
+	if err := database.Migrate(db); err != nil {
 		slog.Error("Failed to migrate database", "error", err)
 		os.Exit(1)
 	}
 
 	// Initialize services
-	repo := database.NewRepository(database.DB)
+	repo := database.NewRepository(db)
 	server, err := handlers.NewSchedulerServer(cfg, repo)
 	if err != nil {
 		slog.Error("Failed to create scheduler server", "error", err)

@@ -9,6 +9,43 @@ import (
 	"gorm.io/gorm"
 )
 
+type RepositoryInterface interface{
+	// Task methods
+	CreateTask(task *models.Task) error
+	GetTaskByID(id uuid.UUID) (*models.Task, error)
+	GetAllTasks(limit, offset int) ([]models.Task, error)
+	GetTasksByStatus(status models.TaskStatus, limit, offset int) ([]models.Task, error)
+	UpdateTask(task *models.Task) error
+	UpdateTaskStatus(id uuid.UUID, status models.TaskStatus) error
+	DeleteTask(id uuid.UUID) error
+	CountTasks() (int64, error)
+	CountTasksByStatus(status models.TaskStatus) (int64, error)
+	GetTasksCreatedAfter(after time.Time) ([]models.Task, error)
+	GetTasksUpdatedAfter(after time.Time) ([]models.Task, error)
+	GetCreatedTasks() ([]models.Task, error)
+	GetPendingTasks() ([]models.Task, error)
+
+	// TaskExecutionResult methods
+	CreateTaskResult(result *models.TaskExecutionResult) error
+	GetTaskResultByID(id uuid.UUID) (*models.TaskExecutionResult, error)
+	GetTaskResultsByTaskID(taskID uuid.UUID, limit, offset int) ([]models.TaskExecutionResult, error)
+	GetAllTaskResults(limit, offset int) ([]models.TaskExecutionResult, error)
+	GetSuccessfulTaskResults(limit, offset int) ([]models.TaskExecutionResult, error)
+	GetFailedTaskResults(limit, offset int) ([]models.TaskExecutionResult, error)
+	GetLatestTaskResultByTaskID(taskID uuid.UUID) (*models.TaskExecutionResult, error)
+	DeleteTaskResult(id uuid.UUID) error
+	DeleteTaskResultsByTaskID(taskID uuid.UUID) error
+	CountTaskResults() (int64, error)
+	CountTaskResultsByTaskID(taskID uuid.UUID) (int64, error)
+	CountSuccessfulTaskResults() (int64, error)
+	CountFailedTaskResults() (int64, error)
+	GetTaskResultsExecutedAfter(after time.Time) ([]models.TaskExecutionResult, error)
+	GetTaskResultsCreatedAfter(after time.Time) ([]models.TaskExecutionResult, error)
+
+	// Transaction method
+	Transaction(fn func(RepositoryInterface) error) error
+}
+
 type Repository struct {
 	db *gorm.DB
 }
@@ -280,7 +317,7 @@ func (r *Repository) DeleteTaskResultsByTaskID(taskID uuid.UUID) error {
 }
 
 // Count returns the total number of task execution results
-func (r *Repository) Count() (int64, error) {
+func (r *Repository) CountTaskResults() (int64, error) {
 	var count int64
 	err := r.db.Model(&models.TaskExecutionResult{}).Count(&count).Error
 	return count, err
@@ -332,7 +369,7 @@ func (r *Repository) GetTaskResultsCreatedAfter(after time.Time) ([]models.TaskE
 }
 
 // Transaction executes multiple operations in a transaction
-func (r *Repository) Transaction(fn func(*Repository) error) error {
+func (r *Repository) Transaction(fn func(RepositoryInterface) error) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
 		txRepo := &Repository{db: tx}
 		return fn(txRepo)

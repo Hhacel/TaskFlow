@@ -10,15 +10,15 @@ import (
 	"github.com/google/uuid"
 	"github.com/hhace/taskflow/apps/scheduler/config"
 	"github.com/hhace/taskflow/models"
+	"github.com/hhace/taskflow/pkg/database"
 	"github.com/nats-io/nats.go"
 	"github.com/robfig/cron/v3"
-	"gorm.io/gorm"
 )
 
 // TaskScheduler manages scheduled task execution
 type TaskScheduler struct {
 	config      *config.Config
-	db          *gorm.DB
+	repo 	    database.RepositoryInterface
 	natsConn    *nats.Conn
 	cron        *cron.Cron
 	jobs        map[uuid.UUID]cron.EntryID // maps task ID to cron entry ID
@@ -27,10 +27,10 @@ type TaskScheduler struct {
 }
 
 // NewTaskScheduler creates a new task scheduler
-func NewTaskScheduler(cfg *config.Config, db *gorm.DB, natsConn *nats.Conn) *TaskScheduler {
+func NewTaskScheduler(cfg *config.Config, repo database.RepositoryInterface, natsConn *nats.Conn) *TaskScheduler {
 	return &TaskScheduler{
 		config:      cfg,
-		db:          db,
+		repo:        repo,
 		natsConn:    natsConn,
 		cron:        cron.New(cron.WithSeconds()), // Enable seconds in cron expressions
 		jobs:        make(map[uuid.UUID]cron.EntryID),
@@ -66,9 +66,9 @@ func (ts *TaskScheduler) Stop() {
 
 // loadTasks loads all created tasks from the database and schedules them
 func (ts *TaskScheduler) loadTasks() error {
-	var tasks []models.Task
-	if err := ts.db.Find(&tasks).Error; err != nil {
-		return fmt.Errorf("failed to query tasks: %w", err)
+	tasks, err := ts.repo.GetAllTasks(0, 0)
+	if err != nil {
+		return fmt.Errorf("failed to fetch tasks from database: %w", err)
 	}
 
 	slog.Debug("Found created tasks in database", "count", len(tasks))
@@ -149,7 +149,7 @@ func (ts *TaskScheduler) executeTask(task *models.Task) {
 	slog.Info("Executing scheduled task", "taskId", task.ID, "schedule", task.Schedule)
 
 	// Update task status to pending (ready for worker)
-	if err := ts.db.Model(task).Update("status", models.TaskStatusPending).Error; err != nil {
+	if err := ts.repo.UpdateTaskStatus(task.ID, models.TaskStatusPending); err != nil {
 		slog.Error("Failed to update task status to pending", "taskId", task.ID, "error", err)
 		return
 	}
@@ -166,8 +166,8 @@ func (ts *TaskScheduler) executeTask(task *models.Task) {
 		slog.Error("Failed to publish task to NATS", "taskId", task.ID, "error", err)
 
 		// Revert status back to created
-		if err := ts.db.Model(task).Update("status", models.TaskStatusCreated).Error; err != nil {
-			slog.Error("Failed to revert task status", "taskId", task.ID, "error", err)
+		if updateErr := ts.repo.UpdateTaskStatus(task.ID, models.TaskStatusCreated); updateErr != nil {
+			slog.Error("Failed to revert task status to created", "taskId", task.ID, "error", updateErr)
 		}
 		return
 	}
