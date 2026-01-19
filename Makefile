@@ -15,7 +15,7 @@ logs:
 
 # Development commands
 test:
-	go test ./...
+	go test ./... -cover
 
 clean:
 	docker-compose down -v
