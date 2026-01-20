@@ -8,7 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/hhace/taskflow/apps/scheduler/config"
 	"github.com/hhace/taskflow/models"
-	"github.com/hhace/taskflow/pkg/database"
+	"github.com/hhace/taskflow/pkg/persistence"
 	"github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -19,7 +19,7 @@ func TestNewResultConsumer(t *testing.T) {
 	tests := []struct {
 		name        string
 		cfg         *config.Config
-		repo        database.RepositoryInterface
+		repo        persistence.RepositoryInterface
 		nc          *nats.Conn
 		wantErr     bool
 		expectedErr string
@@ -27,14 +27,14 @@ func TestNewResultConsumer(t *testing.T) {
 		{
 			name:    "success - valid parameters",
 			cfg:     &config.Config{},
-			repo:    database.NewMockRepository(),
+			repo:    persistence.NewMockRepository(),
 			nc:      &nats.Conn{},
 			wantErr: false,
 		},
 		{
 			name:        "error - nil NATS connection",
 			cfg:         &config.Config{},
-			repo:        database.NewMockRepository(),
+			repo:        persistence.NewMockRepository(),
 			nc:          nil,
 			wantErr:     true,
 			expectedErr: "NATS connection is nil",
@@ -85,7 +85,7 @@ func TestResultConsumer_HandleResult(t *testing.T) {
 	tests := []struct {
 		name           string
 		result         models.TaskExecutionResult
-		mockSetup      func(*database.MockRepository)
+		mockSetup      func(*persistence.MockRepository)
 		expectedStatus models.TaskStatus
 	}{
 		{
@@ -100,7 +100,7 @@ func TestResultConsumer_HandleResult(t *testing.T) {
 				EndTime:   now.Add(5 * time.Second),
 				Duration:  "5s",
 			},
-			mockSetup: func(m *database.MockRepository) {
+			mockSetup: func(m *persistence.MockRepository) {
 				m.On("UpdateTaskStatus", taskID, models.TaskStatusCompleted).Return(nil).Once()
 				m.On("CreateTaskResult", mock.AnythingOfType("*models.TaskExecutionResult")).Return(nil).Once()
 			},
@@ -118,7 +118,7 @@ func TestResultConsumer_HandleResult(t *testing.T) {
 				EndTime:   now.Add(1 * time.Second),
 				Duration:  "1s",
 			},
-			mockSetup: func(m *database.MockRepository) {
+			mockSetup: func(m *persistence.MockRepository) {
 				m.On("UpdateTaskStatus", taskID, models.TaskStatusFailed).Return(nil).Once()
 				m.On("CreateTaskResult", mock.AnythingOfType("*models.TaskExecutionResult")).Return(nil).Once()
 			},
@@ -136,7 +136,7 @@ func TestResultConsumer_HandleResult(t *testing.T) {
 				EndTime:   now.Add(2 * time.Second),
 				Duration:  "2s",
 			},
-			mockSetup: func(m *database.MockRepository) {
+			mockSetup: func(m *persistence.MockRepository) {
 				m.On("UpdateTaskStatus", taskID, models.TaskStatusFailed).Return(nil).Once()
 				m.On("CreateTaskResult", mock.AnythingOfType("*models.TaskExecutionResult")).Return(nil).Once()
 			},
@@ -154,7 +154,7 @@ func TestResultConsumer_HandleResult(t *testing.T) {
 				EndTime:   now.Add(3 * time.Second),
 				Duration:  "3s",
 			},
-			mockSetup: func(m *database.MockRepository) {
+			mockSetup: func(m *persistence.MockRepository) {
 				m.On("UpdateTaskStatus", taskID, models.TaskStatusCompleted).Return(assert.AnError).Once()
 				// CreateTaskResult should not be called when UpdateTaskStatus fails
 			},
@@ -172,7 +172,7 @@ func TestResultConsumer_HandleResult(t *testing.T) {
 				EndTime:   now.Add(1 * time.Second),
 				Duration:  "1s",
 			},
-			mockSetup: func(m *database.MockRepository) {
+			mockSetup: func(m *persistence.MockRepository) {
 				m.On("UpdateTaskStatus", taskID, models.TaskStatusFailed).Return(assert.AnError).Once()
 				// CreateTaskResult should not be called when UpdateTaskStatus fails
 			},
@@ -190,7 +190,7 @@ func TestResultConsumer_HandleResult(t *testing.T) {
 				EndTime:   now.Add(4 * time.Second),
 				Duration:  "4s",
 			},
-			mockSetup: func(m *database.MockRepository) {
+			mockSetup: func(m *persistence.MockRepository) {
 				m.On("UpdateTaskStatus", taskID, models.TaskStatusCompleted).Return(nil).Once()
 				m.On("CreateTaskResult", mock.AnythingOfType("*models.TaskExecutionResult")).Return(assert.AnError).Once()
 			},
@@ -201,7 +201,7 @@ func TestResultConsumer_HandleResult(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create mock repository
-			mockRepo := database.NewMockRepository()
+			mockRepo := persistence.NewMockRepository()
 			tt.mockSetup(mockRepo)
 
 			// Create consumer with mock
@@ -238,7 +238,7 @@ func TestResultConsumer_HandleResult(t *testing.T) {
 
 func TestResultConsumer_HandleResult_InvalidJSON(t *testing.T) {
 	// Create mock repository - should not be called
-	mockRepo := database.NewMockRepository()
+	mockRepo := persistence.NewMockRepository()
 
 	// Create consumer
 	cfg := &config.Config{

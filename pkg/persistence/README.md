@@ -4,13 +4,13 @@ This guide explains how to use GORM (Go Object-Relational Mapping) with PostgreS
 
 ## 📦 **What's Included**
 
-### **Database Package (`pkg/database/`)**
-- `database.go` - Connection management and configuration
-- `models.go` - Task model and custom types
-- `repository.go` - Database operations (Repository pattern)
+### **Persistence Package (`pkg/persistence/`)**
+- `persistence.go` - Connection management and configuration
+- `repo.go` - Database operations (Repository pattern)
+- `mock_repo.go` - Mock repository for testing
 
 ### **Examples (`examples/`)**
-- `database_demo.go` - Complete GORM usage demonstration
+- `persistence_demo.go` - Complete GORM usage demonstration
 - `scheduler_service.go` - Real-world service implementation
 
 ## 🚀 **Quick Start**
@@ -31,25 +31,25 @@ export DB_PASSWORD=taskflow
 
 ### **3. Initialize Database in Your Service**
 ```go
-import "github.com/hhace/taskflow/pkg/database"
+import "github.com/hhace/taskflow/pkg/persistence"
 
 func main() {
     // Load config from environment
-    config := database.LoadConfig()
+    config := persistence.LoadConfig()
     
     // Connect to database
-    if err := database.Connect(config); err != nil {
+    if err := persistence.Connect(config); err != nil {
         log.Fatal("Database connection failed:", err)
     }
-    defer database.Close()
+    defer persistence.Close()
     
     // Run auto-migration
-    if err := database.Migrate(); err != nil {
+    if err := persistence.Migrate(); err != nil {
         log.Fatal("Migration failed:", err)
     }
     
     // Create repository
-    taskRepo := database.NewTaskRepository(database.DB)
+    repo := persistence.NewRepository(db)
     
     // Use repository...
 }

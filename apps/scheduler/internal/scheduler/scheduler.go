@@ -10,7 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/hhace/taskflow/apps/scheduler/config"
 	"github.com/hhace/taskflow/models"
-	"github.com/hhace/taskflow/pkg/database"
+	"github.com/hhace/taskflow/pkg/persistence"
 	"github.com/nats-io/nats.go"
 	"github.com/robfig/cron/v3"
 )
@@ -18,7 +18,7 @@ import (
 // TaskScheduler manages scheduled task execution
 type TaskScheduler struct {
 	config      *config.Config
-	repo 	    database.RepositoryInterface
+	repo        persistence.RepositoryInterface
 	natsConn    *nats.Conn
 	cron        *cron.Cron
 	jobs        map[uuid.UUID]cron.EntryID // maps task ID to cron entry ID
@@ -27,7 +27,7 @@ type TaskScheduler struct {
 }
 
 // NewTaskScheduler creates a new task scheduler
-func NewTaskScheduler(cfg *config.Config, repo database.RepositoryInterface, natsConn *nats.Conn) *TaskScheduler {
+func NewTaskScheduler(cfg *config.Config, repo persistence.RepositoryInterface, natsConn *nats.Conn) *TaskScheduler {
 	return &TaskScheduler{
 		config:      cfg,
 		repo:        repo,

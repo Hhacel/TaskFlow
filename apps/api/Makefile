@@ -7,7 +7,7 @@ generate:
 	@echo Generating API code from OpenAPI specification...
 	@where oapi-codegen >nul 2>&1 || (echo Installing oapi-codegen... && go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest)
 	@if not exist internal\api mkdir internal\api
-	oapi-codegen -config oapi-codegen.yaml api/openapi.yaml
+	oapi-codegen -config oapi-codegen.yaml api/taskflow.yaml
 	@echo API code generated in internal/api/
 
 # Generate types only

@@ -4,4 +4,4 @@ generate:
   - types
   - gin-server
   - spec
-output: internal/api/generated.go
+output: internal/api/taskflow_api.go

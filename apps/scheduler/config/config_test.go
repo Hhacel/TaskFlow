@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hhace/taskflow/pkg/database"
+	"github.com/hhace/taskflow/pkg/persistence"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -22,7 +22,7 @@ func TestDefaultConfig(t *testing.T) {
 				Server: ServerConfig{
 					Port: "8084",
 				},
-				Database: database.Config{
+				Database: persistence.Config{
 					Host:     "postgres",
 					Port:     "5432",
 					User:     "taskflow",
@@ -52,7 +52,7 @@ func TestDefaultConfig(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := DefaultConfig()
-		    reflect.DeepEqual(tt.want, got)
+			reflect.DeepEqual(tt.want, got)
 		})
 	}
 }
@@ -78,15 +78,15 @@ func TestLoadConfig(t *testing.T) {
 				Server: ServerConfig{
 					Port: "8084",
 				},
-				Database: database.Config{
-					Host:     "postgres",
-					Port:     "5432",
-					User:     "taskflow",
-					Password: "taskflow",
-					Database: "taskflow",
-					SSLMode:  "disable",
-					MaxOpenConns: 25,
-					MaxIdleConns: 5,
+				Database: persistence.Config{
+					Host:                   "postgres",
+					Port:                   "5432",
+					User:                   "taskflow",
+					Password:               "taskflow",
+					Database:               "taskflow",
+					SSLMode:                "disable",
+					MaxOpenConns:           25,
+					MaxIdleConns:           5,
 					ConnMaxLifetimeMinutes: 5,
 				},
 				NATS: NATSConfig{
@@ -119,35 +119,35 @@ func TestLoadConfig(t *testing.T) {
 			wantConfig: DefaultConfig(),
 		},
 		{
-			name:       "partial config file merges with defaults",
-			filepath:   filepath.Join("test_data", "partial_config.yaml"),
-			wantErr:    false,
+			name:     "partial config file merges with defaults",
+			filepath: filepath.Join("test_data", "partial_config.yaml"),
+			wantErr:  false,
 			wantConfig: &Config{
 				Server: ServerConfig{
-					Port: "7070",  // from partial config
+					Port: "7070", // from partial config
 				},
-				Database: database.Config{
-					Host:     "postgres",   // from defaults
-					Port:     "5432",       // from defaults
-					User:     "taskflow",   // from defaults
-					Password: "taskflow",   // from defaults
-					Database: "taskflow",   // from defaults
-					SSLMode:  "disable",    // from defaults
+				Database: persistence.Config{
+					Host:     "postgres", // from defaults
+					Port:     "5432",     // from defaults
+					User:     "taskflow", // from defaults
+					Password: "taskflow", // from defaults
+					Database: "taskflow", // from defaults
+					SSLMode:  "disable",  // from defaults
 				},
 				NATS: NATSConfig{
-					URL:                 "nats://partial-nats:4222",  // from partial config
-					TaskScheduleSubject: "tasks.schedule",            // from defaults
-					TaskResultSubject:   "tasks.results",             // from defaults
-					ReconnectWait:       2,                           // from defaults
-					MaxReconnects:       60,                          // from defaults
+					URL:                 "nats://partial-nats:4222", // from partial config
+					TaskScheduleSubject: "tasks.schedule",           // from defaults
+					TaskResultSubject:   "tasks.results",            // from defaults
+					ReconnectWait:       2,                          // from defaults
+					MaxReconnects:       60,                         // from defaults
 				},
 				GRPC: GRPCConfig{
-					NotifierAddress: "notifier:8083",  // from defaults
-					Timeout:         10,               // from defaults
+					NotifierAddress: "notifier:8083", // from defaults
+					Timeout:         10,              // from defaults
 				},
 				Logging: LoggingConfig{
-					Level:  "info",   // from defaults
-					Format: "json",   // from defaults
+					Level:  "info", // from defaults
+					Format: "json", // from defaults
 				},
 			},
 		},
@@ -184,15 +184,15 @@ func TestLoadConfigWithEnvOverrides(t *testing.T) {
 				Server: ServerConfig{
 					Port: "8084",
 				},
-				Database: database.Config{
-					Host:     "postgres",
-					Port:     "5432",
-					User:     "taskflow",
-					Password: "taskflow",
-					Database: "taskflow",
-					SSLMode:  "disable",
-					MaxOpenConns: 25,
-					MaxIdleConns: 5,
+				Database: persistence.Config{
+					Host:                   "postgres",
+					Port:                   "5432",
+					User:                   "taskflow",
+					Password:               "taskflow",
+					Database:               "taskflow",
+					SSLMode:                "disable",
+					MaxOpenConns:           25,
+					MaxIdleConns:           5,
 					ConnMaxLifetimeMinutes: 5,
 				},
 				NATS: NATSConfig{
@@ -223,15 +223,15 @@ func TestLoadConfigWithEnvOverrides(t *testing.T) {
 				Server: ServerConfig{
 					Port: "9999",
 				},
-				Database: database.Config{
-					Host:     "postgres",
-					Port:     "5432",
-					User:     "taskflow",
-					Password: "taskflow",
-					Database: "taskflow",
-					SSLMode:  "disable",
-					MaxOpenConns: 25,
-					MaxIdleConns: 5,
+				Database: persistence.Config{
+					Host:                   "postgres",
+					Port:                   "5432",
+					User:                   "taskflow",
+					Password:               "taskflow",
+					Database:               "taskflow",
+					SSLMode:                "disable",
+					MaxOpenConns:           25,
+					MaxIdleConns:           5,
 					ConnMaxLifetimeMinutes: 5,
 				},
 				NATS: NATSConfig{
@@ -266,15 +266,15 @@ func TestLoadConfigWithEnvOverrides(t *testing.T) {
 				Server: ServerConfig{
 					Port: "8084",
 				},
-				Database: database.Config{
-					Host:     "env-postgres",
-					Port:     "5433",
-					User:     "envuser",
-					Password: "envpass",
-					Database: "envdb",
-					SSLMode:  "disable",
-					MaxOpenConns: 25,
-					MaxIdleConns: 5,
+				Database: persistence.Config{
+					Host:                   "env-postgres",
+					Port:                   "5433",
+					User:                   "envuser",
+					Password:               "envpass",
+					Database:               "envdb",
+					SSLMode:                "disable",
+					MaxOpenConns:           25,
+					MaxIdleConns:           5,
 					ConnMaxLifetimeMinutes: 5,
 				},
 				NATS: NATSConfig{
@@ -305,15 +305,15 @@ func TestLoadConfigWithEnvOverrides(t *testing.T) {
 				Server: ServerConfig{
 					Port: "8084",
 				},
-				Database: database.Config{
-					Host:     "postgres",
-					Port:     "5432",
-					User:     "taskflow",
-					Password: "taskflow",
-					Database: "taskflow",
-					SSLMode:  "disable",
-					MaxOpenConns: 25,
-					MaxIdleConns: 5,
+				Database: persistence.Config{
+					Host:                   "postgres",
+					Port:                   "5432",
+					User:                   "taskflow",
+					Password:               "taskflow",
+					Database:               "taskflow",
+					SSLMode:                "disable",
+					MaxOpenConns:           25,
+					MaxIdleConns:           5,
 					ConnMaxLifetimeMinutes: 5,
 				},
 				NATS: NATSConfig{
@@ -344,15 +344,15 @@ func TestLoadConfigWithEnvOverrides(t *testing.T) {
 				Server: ServerConfig{
 					Port: "8084",
 				},
-				Database: database.Config{
-					Host:     "postgres",
-					Port:     "5432",
-					User:     "taskflow",
-					Password: "taskflow",
-					Database: "taskflow",
-					SSLMode:  "disable",
-					MaxOpenConns: 25,
-					MaxIdleConns: 5,
+				Database: persistence.Config{
+					Host:                   "postgres",
+					Port:                   "5432",
+					User:                   "taskflow",
+					Password:               "taskflow",
+					Database:               "taskflow",
+					SSLMode:                "disable",
+					MaxOpenConns:           25,
+					MaxIdleConns:           5,
 					ConnMaxLifetimeMinutes: 5,
 				},
 				NATS: NATSConfig{
@@ -383,15 +383,15 @@ func TestLoadConfigWithEnvOverrides(t *testing.T) {
 				Server: ServerConfig{
 					Port: "8084",
 				},
-				Database: database.Config{
-					Host:     "postgres",
-					Port:     "5432",
-					User:     "taskflow",
-					Password: "taskflow",
-					Database: "taskflow",
-					SSLMode:  "disable",
-					MaxOpenConns: 25,
-					MaxIdleConns: 5,
+				Database: persistence.Config{
+					Host:                   "postgres",
+					Port:                   "5432",
+					User:                   "taskflow",
+					Password:               "taskflow",
+					Database:               "taskflow",
+					SSLMode:                "disable",
+					MaxOpenConns:           25,
+					MaxIdleConns:           5,
 					ConnMaxLifetimeMinutes: 5,
 				},
 				NATS: NATSConfig{
@@ -425,7 +425,7 @@ func TestLoadConfigWithEnvOverrides(t *testing.T) {
 				Server: ServerConfig{
 					Port: "7777",
 				},
-				Database: database.Config{
+				Database: persistence.Config{
 					Host:     "multi-env-postgres",
 					Port:     "5432",
 					User:     "taskflow",
@@ -462,7 +462,7 @@ func TestLoadConfigWithEnvOverrides(t *testing.T) {
 				Server: ServerConfig{
 					Port: "6666",
 				},
-				Database: database.Config{
+				Database: persistence.Config{
 					Host:     "override-postgres",
 					Port:     "5432",
 					User:     "taskflow",

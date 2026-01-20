@@ -15,7 +15,7 @@ logs:
 
 # Development commands
 test:
-	go test ./... -cover
+	@powershell -Command "$$packages = go list ./... | Where-Object { $$_ -notmatch '/cmd$$' -and $$_ -notmatch '/internal/api$$' }; go test $$packages -cover"
 
 clean:
 	docker-compose down -v

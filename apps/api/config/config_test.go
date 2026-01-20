@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hhace/taskflow/pkg/database"
+	"github.com/hhace/taskflow/pkg/persistence"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -22,7 +22,7 @@ func TestDefaultConfig(t *testing.T) {
 				Server: ServerConfig{
 					Port: "8081",
 				},
-				Database: database.Config{
+				Database: persistence.Config{
 					Host:     "postgres",
 					Port:     "5432",
 					User:     "taskflow",
@@ -67,7 +67,7 @@ func TestLoadConfig(t *testing.T) {
 				Server: ServerConfig{
 					Port: "8081",
 				},
-				Database: database.Config{
+				Database: persistence.Config{
 					Host:                   "postgres",
 					Port:                   "5432",
 					User:                   "taskflow",
@@ -104,7 +104,7 @@ func TestLoadConfig(t *testing.T) {
 				Server: ServerConfig{
 					Port: "7070", // from partial config
 				},
-				Database: database.Config{
+				Database: persistence.Config{
 					Host:                   "postgres", // from defaults
 					Port:                   "5432",     // from defaults
 					User:                   "taskflow", // from defaults
@@ -154,7 +154,7 @@ func TestLoadConfigWithEnvOverrides(t *testing.T) {
 				Server: ServerConfig{
 					Port: "8081",
 				},
-				Database: database.Config{
+				Database: persistence.Config{
 					Host:                   "postgres",
 					Port:                   "5432",
 					User:                   "taskflow",
@@ -182,7 +182,7 @@ func TestLoadConfigWithEnvOverrides(t *testing.T) {
 				Server: ServerConfig{
 					Port: "9999",
 				},
-				Database: database.Config{
+				Database: persistence.Config{
 					Host:                   "postgres",
 					Port:                   "5432",
 					User:                   "taskflow",
@@ -214,7 +214,7 @@ func TestLoadConfigWithEnvOverrides(t *testing.T) {
 				Server: ServerConfig{
 					Port: "8081",
 				},
-				Database: database.Config{
+				Database: persistence.Config{
 					Host:                   "env-postgres",
 					Port:                   "5433",
 					User:                   "envuser",
@@ -242,7 +242,7 @@ func TestLoadConfigWithEnvOverrides(t *testing.T) {
 				Server: ServerConfig{
 					Port: "8081",
 				},
-				Database: database.Config{
+				Database: persistence.Config{
 					Host:                   "postgres",
 					Port:                   "5432",
 					User:                   "taskflow",
@@ -270,7 +270,7 @@ func TestLoadConfigWithEnvOverrides(t *testing.T) {
 				Server: ServerConfig{
 					Port: "8081",
 				},
-				Database: database.Config{
+				Database: persistence.Config{
 					Host:                   "postgres",
 					Port:                   "5432",
 					User:                   "taskflow",
@@ -298,7 +298,7 @@ func TestLoadConfigWithEnvOverrides(t *testing.T) {
 				Server: ServerConfig{
 					Port: "8081",
 				},
-				Database: database.Config{
+				Database: persistence.Config{
 					Host:                   "postgres",
 					Port:                   "5432",
 					User:                   "taskflow",
@@ -329,7 +329,7 @@ func TestLoadConfigWithEnvOverrides(t *testing.T) {
 				Server: ServerConfig{
 					Port: "7777",
 				},
-				Database: database.Config{
+				Database: persistence.Config{
 					Host:                   "multi-env-postgres",
 					Port:                   "5432",
 					User:                   "taskflow",
@@ -358,7 +358,7 @@ func TestLoadConfigWithEnvOverrides(t *testing.T) {
 				Server: ServerConfig{
 					Port: "6666",
 				},
-				Database: database.Config{
+				Database: persistence.Config{
 					Host:                   "override-postgres",
 					Port:                   "5432",
 					User:                   "taskflow",
@@ -405,7 +405,7 @@ func TestConfig_GetDSN(t *testing.T) {
 		{
 			name: "returns correct DSN with default values",
 			config: &Config{
-				Database: database.Config{
+				Database: persistence.Config{
 					Host:     "postgres",
 					Port:     "5432",
 					User:     "taskflow",
@@ -419,7 +419,7 @@ func TestConfig_GetDSN(t *testing.T) {
 		{
 			name: "returns correct DSN with custom values",
 			config: &Config{
-				Database: database.Config{
+				Database: persistence.Config{
 					Host:     "custom-host",
 					Port:     "5433",
 					User:     "customuser",
@@ -433,7 +433,7 @@ func TestConfig_GetDSN(t *testing.T) {
 		{
 			name: "returns correct DSN with empty password",
 			config: &Config{
-				Database: database.Config{
+				Database: persistence.Config{
 					Host:     "localhost",
 					Port:     "5432",
 					User:     "testuser",
@@ -463,7 +463,7 @@ func TestConfig_GetConnMaxLifetime(t *testing.T) {
 		{
 			name: "returns correct duration for default value (60 minutes)",
 			config: &Config{
-				Database: database.Config{
+				Database: persistence.Config{
 					ConnMaxLifetimeMinutes: 60,
 				},
 			},
@@ -472,7 +472,7 @@ func TestConfig_GetConnMaxLifetime(t *testing.T) {
 		{
 			name: "returns correct duration for 5 minutes",
 			config: &Config{
-				Database: database.Config{
+				Database: persistence.Config{
 					ConnMaxLifetimeMinutes: 5,
 				},
 			},
@@ -481,7 +481,7 @@ func TestConfig_GetConnMaxLifetime(t *testing.T) {
 		{
 			name: "returns correct duration for 120 minutes",
 			config: &Config{
-				Database: database.Config{
+				Database: persistence.Config{
 					ConnMaxLifetimeMinutes: 120,
 				},
 			},
@@ -490,7 +490,7 @@ func TestConfig_GetConnMaxLifetime(t *testing.T) {
 		{
 			name: "returns zero duration for 0 minutes",
 			config: &Config{
-				Database: database.Config{
+				Database: persistence.Config{
 					ConnMaxLifetimeMinutes: 0,
 				},
 			},

@@ -8,7 +8,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
-	"gorm.io/gorm"
 )
 
 // TaskStatus represents the status of a task
@@ -85,8 +84,8 @@ func (Task) TableName() string {
 	return "tasks"
 }
 
-// BeforeCreate is a GORM hook that runs before creating a task
-func (t *Task) BeforeCreate(tx *gorm.DB) error {
+// BeforeCreate generates a UUID if not set
+func (t *Task) BeforeCreate() error {
 	if t.ID == uuid.Nil {
 		t.ID = uuid.New()
 	}
@@ -118,10 +117,12 @@ func (t *Task) CanTransitionTo(newStatus TaskStatus) bool {
 }
 
 // UpdateStatus updates the task status with validation
-func (t *Task) UpdateStatus(tx *gorm.DB, newStatus TaskStatus) error {
+// Note: This method only validates the transition. Use repository.UpdateTaskStatus for persistence.
+func (t *Task) UpdateStatus(newStatus TaskStatus) error {
 	if !t.CanTransitionTo(newStatus) {
 		return fmt.Errorf("cannot transition from %s to %s", t.Status, newStatus)
 	}
 
-	return tx.Model(t).Update("status", newStatus).Error
+	t.Status = newStatus
+	return nil
 }

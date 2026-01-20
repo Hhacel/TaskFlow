@@ -5,17 +5,17 @@ import (
 	"os"
 	"time"
 
-	"github.com/hhace/taskflow/pkg/database"
+	"github.com/hhace/taskflow/pkg/persistence"
 	"gopkg.in/yaml.v3"
 )
 
 // Config represents the scheduler configuration
 type Config struct {
-	Server   ServerConfig    `yaml:"server"`
-	Database database.Config `yaml:"database"`
-	NATS     NATSConfig      `yaml:"nats"`
-	GRPC     GRPCConfig      `yaml:"grpc"`
-	Logging  LoggingConfig   `yaml:"logging"`
+	Server   ServerConfig       `yaml:"server"`
+	Database persistence.Config `yaml:"database"`
+	NATS     NATSConfig         `yaml:"nats"`
+	GRPC     GRPCConfig         `yaml:"grpc"`
+	Logging  LoggingConfig      `yaml:"logging"`
 }
 
 // ServerConfig contains HTTP server settings
@@ -50,7 +50,7 @@ func DefaultConfig() *Config {
 		Server: ServerConfig{
 			Port: "8084",
 		},
-		Database: database.Config{
+		Database: persistence.Config{
 			Host:     "postgres",
 			Port:     "5432",
 			User:     "taskflow",

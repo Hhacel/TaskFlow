@@ -7,7 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/hhace/taskflow/apps/scheduler/config"
 	"github.com/hhace/taskflow/models"
-	"github.com/hhace/taskflow/pkg/database"
+	"github.com/hhace/taskflow/pkg/persistence"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/assert"
@@ -22,7 +22,7 @@ func TestNewTaskScheduler(t *testing.T) {
 	tests := []struct {
 		name     string
 		cfg      *config.Config
-		repo     database.RepositoryInterface
+		repo     persistence.RepositoryInterface
 		natsConn *nats.Conn
 	}{
 		{
@@ -33,7 +33,7 @@ func TestNewTaskScheduler(t *testing.T) {
 					TaskResultSubject:   "tasks.results",
 				},
 			},
-			repo:     database.NewMockRepository(),
+			repo:     persistence.NewMockRepository(),
 			natsConn: nc,
 		},
 	}
@@ -120,7 +120,7 @@ func TestTaskScheduler_AddTask(t *testing.T) {
 					TaskScheduleSubject: "tasks.schedule",
 				},
 			}
-			mockRepo := database.NewMockRepository()
+			mockRepo := persistence.NewMockRepository()
 
 			scheduler := NewTaskScheduler(cfg, mockRepo, nc)
 
@@ -180,7 +180,7 @@ func TestTaskScheduler_RemoveTask(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := &config.Config{}
-			mockRepo := database.NewMockRepository()
+			mockRepo := persistence.NewMockRepository()
 
 			scheduler := NewTaskScheduler(cfg, mockRepo, nc)
 
@@ -223,14 +223,14 @@ func TestTaskScheduler_LoadTasks(t *testing.T) {
 
 	tests := []struct {
 		name          string
-		mockSetup     func(*database.MockRepository)
+		mockSetup     func(*persistence.MockRepository)
 		existingTasks map[uuid.UUID]bool
 		expectedJobs  int
 		wantErr       bool
 	}{
 		{
 			name: "success - loads tasks from empty database",
-			mockSetup: func(m *database.MockRepository) {
+			mockSetup: func(m *persistence.MockRepository) {
 				m.On("GetAllTasks", 0, 0).Return([]models.Task{}, nil).Once()
 			},
 			existingTasks: map[uuid.UUID]bool{},
@@ -239,7 +239,7 @@ func TestTaskScheduler_LoadTasks(t *testing.T) {
 		},
 		{
 			name: "success - loads multiple tasks",
-			mockSetup: func(m *database.MockRepository) {
+			mockSetup: func(m *persistence.MockRepository) {
 				tasks := []models.Task{
 					{
 						ID:       taskID1,
@@ -262,7 +262,7 @@ func TestTaskScheduler_LoadTasks(t *testing.T) {
 		},
 		{
 			name: "success - removes tasks not in database",
-			mockSetup: func(m *database.MockRepository) {
+			mockSetup: func(m *persistence.MockRepository) {
 				tasks := []models.Task{
 					{
 						ID:       taskID1,
@@ -282,7 +282,7 @@ func TestTaskScheduler_LoadTasks(t *testing.T) {
 		},
 		{
 			name: "error - database fetch fails",
-			mockSetup: func(m *database.MockRepository) {
+			mockSetup: func(m *persistence.MockRepository) {
 				m.On("GetAllTasks", 0, 0).Return([]models.Task{}, assert.AnError).Once()
 			},
 			existingTasks: map[uuid.UUID]bool{},
@@ -291,7 +291,7 @@ func TestTaskScheduler_LoadTasks(t *testing.T) {
 		},
 		{
 			name: "partial success - skips task with invalid cron",
-			mockSetup: func(m *database.MockRepository) {
+			mockSetup: func(m *persistence.MockRepository) {
 				tasks := []models.Task{
 					{
 						ID:       taskID1,
@@ -317,7 +317,7 @@ func TestTaskScheduler_LoadTasks(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := &config.Config{}
-			mockRepo := database.NewMockRepository()
+			mockRepo := persistence.NewMockRepository()
 			tt.mockSetup(mockRepo)
 
 			scheduler := NewTaskScheduler(cfg, mockRepo, nc)
@@ -353,19 +353,19 @@ func TestTaskScheduler_Start(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		mockSetup func(*database.MockRepository)
+		mockSetup func(*persistence.MockRepository)
 		wantErr   bool
 	}{
 		{
 			name: "success - starts with no tasks",
-			mockSetup: func(m *database.MockRepository) {
+			mockSetup: func(m *persistence.MockRepository) {
 				m.On("GetAllTasks", 0, 0).Return([]models.Task{}, nil).Once()
 			},
 			wantErr: false,
 		},
 		{
 			name: "success - starts with tasks",
-			mockSetup: func(m *database.MockRepository) {
+			mockSetup: func(m *persistence.MockRepository) {
 				tasks := []models.Task{
 					{
 						ID:       uuid.New(),
@@ -380,7 +380,7 @@ func TestTaskScheduler_Start(t *testing.T) {
 		},
 		{
 			name: "error - fails to load tasks",
-			mockSetup: func(m *database.MockRepository) {
+			mockSetup: func(m *persistence.MockRepository) {
 				m.On("GetAllTasks", 0, 0).Return([]models.Task{}, assert.AnError).Once()
 			},
 			wantErr: true,
@@ -390,7 +390,7 @@ func TestTaskScheduler_Start(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := &config.Config{}
-			mockRepo := database.NewMockRepository()
+			mockRepo := persistence.NewMockRepository()
 			tt.mockSetup(mockRepo)
 
 			scheduler := NewTaskScheduler(cfg, mockRepo, nc)
@@ -418,11 +418,11 @@ func TestTaskScheduler_Stop(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		mockSetup func(*database.MockRepository)
+		mockSetup func(*persistence.MockRepository)
 	}{
 		{
 			name: "success - stops scheduler",
-			mockSetup: func(m *database.MockRepository) {
+			mockSetup: func(m *persistence.MockRepository) {
 				m.On("GetAllTasks", 0, 0).Return([]models.Task{}, nil).Once()
 			},
 		},
@@ -431,7 +431,7 @@ func TestTaskScheduler_Stop(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := &config.Config{}
-			mockRepo := database.NewMockRepository()
+			mockRepo := persistence.NewMockRepository()
 			tt.mockSetup(mockRepo)
 
 			scheduler := NewTaskScheduler(cfg, mockRepo, nc)
@@ -484,7 +484,7 @@ func TestTaskScheduler_ExecuteTask(t *testing.T) {
 	tests := []struct {
 		name      string
 		task      *models.Task
-		mockSetup func(*database.MockRepository)
+		mockSetup func(*persistence.MockRepository)
 		verify    func(*testing.T, *nats.Conn)
 	}{
 		{
@@ -495,7 +495,7 @@ func TestTaskScheduler_ExecuteTask(t *testing.T) {
 				Command:  models.StringArray{"echo", "test"},
 				Status:   models.TaskStatusCreated,
 			},
-			mockSetup: func(m *database.MockRepository) {
+			mockSetup: func(m *persistence.MockRepository) {
 				m.On("UpdateTaskStatus", taskID, models.TaskStatusPending).Return(nil).Once()
 			},
 			verify: func(t *testing.T, nc *nats.Conn) {
@@ -525,7 +525,7 @@ func TestTaskScheduler_ExecuteTask(t *testing.T) {
 				Command:  models.StringArray{"echo", "test"},
 				Status:   models.TaskStatusCreated,
 			},
-			mockSetup: func(m *database.MockRepository) {
+			mockSetup: func(m *persistence.MockRepository) {
 				m.On("UpdateTaskStatus", taskID, models.TaskStatusPending).Return(assert.AnError).Once()
 			},
 			verify: nil,
@@ -539,7 +539,7 @@ func TestTaskScheduler_ExecuteTask(t *testing.T) {
 					TaskScheduleSubject: "tasks.schedule",
 				},
 			}
-			mockRepo := database.NewMockRepository()
+			mockRepo := persistence.NewMockRepository()
 			tt.mockSetup(mockRepo)
 
 			scheduler := &TaskScheduler{

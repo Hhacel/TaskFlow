@@ -10,7 +10,7 @@ import (
 	schedulerConfig "github.com/hhace/taskflow/apps/api/config"
 	"github.com/hhace/taskflow/apps/api/internal/api"
 	"github.com/hhace/taskflow/apps/api/internal/handlers"
-	"github.com/hhace/taskflow/pkg/database"
+	"github.com/hhace/taskflow/pkg/persistence"
 )
 
 func main() {
@@ -35,23 +35,23 @@ func main() {
 	// Initialize database connection
 	slog.Info("Initializing database connection")
 
-	db, err := database.Connect(cfg.Database, 10)
+	db, err := persistence.Connect(cfg.Database, 10)
 
 	if err != nil {
 		slog.Error("Failed to connect to database", "error", err)
 		os.Exit(1)
 	}
-	defer database.Close(db)
+	defer persistence.Close(db)
 
 	// Run database migrations
 	slog.Info("Running database migrations")
-	if err := database.Migrate(db); err != nil {
+	if err := persistence.Migrate(db); err != nil {
 		slog.Error("Failed to migrate database", "error", err)
 		os.Exit(1)
 	}
 
 	// Initialize services
-	repo := database.NewRepository(db)
+	repo := persistence.NewRepository(db)
 	server, err := handlers.NewSchedulerServer(cfg, repo)
 	if err != nil {
 		slog.Error("Failed to create scheduler server", "error", err)

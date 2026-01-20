@@ -13,7 +13,7 @@ import (
 	"github.com/hhace/taskflow/apps/scheduler/config"
 	"github.com/hhace/taskflow/apps/scheduler/internal/consumer"
 	"github.com/hhace/taskflow/apps/scheduler/internal/scheduler"
-	"github.com/hhace/taskflow/pkg/database"
+	"github.com/hhace/taskflow/pkg/persistence"
 	"github.com/nats-io/nats.go"
 )
 
@@ -58,21 +58,21 @@ func main() {
 	slog.Info("Connected to NATS", "url", cfg.NATS.URL)
 
 	// Connect to database
-	db, err := database.Connect(cfg.Database, 10)
+	db, err := persistence.Connect(cfg.Database, 10)
 	if err != nil {
 		slog.Error("Failed to connect to database", "error", err)
 		os.Exit(1)
 	}
-	defer database.Close(db)
+	defer persistence.Close(db)
 	slog.Info("Database connected successfully")
 
 	// migrate the task execution results table
-	if err := database.Migrate(db); err != nil {
+	if err := persistence.Migrate(db); err != nil {
 		slog.Error("Failed to migrate database", "error", err)
 		os.Exit(1)
 	}
 
-	repo := database.NewRepository(db)
+	repo := persistence.NewRepository(db)
 
 	// Create and start result consumer
 	resultConsumer, err := consumer.NewResultConsumer(cfg, repo, nc)

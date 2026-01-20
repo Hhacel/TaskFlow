@@ -7,7 +7,7 @@ import (
 
 	"github.com/hhace/taskflow/apps/scheduler/config"
 	"github.com/hhace/taskflow/models"
-	"github.com/hhace/taskflow/pkg/database"
+	"github.com/hhace/taskflow/pkg/persistence"
 	"github.com/nats-io/nats.go"
 )
 
@@ -15,12 +15,12 @@ import (
 type ResultConsumer struct {
 	config   *config.Config
 	natsConn *nats.Conn
-	repo     database.RepositoryInterface
+	repo     persistence.RepositoryInterface
 	sub      *nats.Subscription
 }
 
 // NewResultConsumer creates a new result consumer
-func NewResultConsumer(cfg *config.Config, repo database.RepositoryInterface, nc *nats.Conn) (*ResultConsumer, error) {
+func NewResultConsumer(cfg *config.Config, repo persistence.RepositoryInterface, nc *nats.Conn) (*ResultConsumer, error) {
 	if nc == nil {
 		return nil, fmt.Errorf("NATS connection is nil")
 	}

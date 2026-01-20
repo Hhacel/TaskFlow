@@ -8,22 +8,22 @@ import (
 	"github.com/hhace/taskflow/apps/api/config"
 	"github.com/hhace/taskflow/apps/api/internal/api"
 	"github.com/hhace/taskflow/models"
-	"github.com/hhace/taskflow/pkg/database"
+	"github.com/hhace/taskflow/pkg/persistence"
 	"github.com/hhace/taskflow/pkg/tfutil"
 	"github.com/oapi-codegen/runtime/types"
 )
 
 // SchedulerServer implements the generated ServerInterface
 type SchedulerServer struct {
-	config   *config.Config
-	repo     database.RepositoryInterface
+	config *config.Config
+	repo   persistence.RepositoryInterface
 }
 
 // NewSchedulerServer creates a new scheduler server
-func NewSchedulerServer(cfg *config.Config, repo *database.Repository) (*SchedulerServer, error) {
+func NewSchedulerServer(cfg *config.Config, repo *persistence.Repository) (*SchedulerServer, error) {
 	return &SchedulerServer{
 		config: cfg,
-		repo: 	repo,
+		repo:   repo,
 	}, nil
 }
 

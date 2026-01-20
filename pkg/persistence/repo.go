@@ -1,4 +1,4 @@
-package database
+package persistence
 
 import (
 	"fmt"
@@ -9,7 +9,7 @@ import (
 	"gorm.io/gorm"
 )
 
-type RepositoryInterface interface{
+type RepositoryInterface interface {
 	// Task methods
 	CreateTask(task *models.Task) error
 	GetTaskByID(id uuid.UUID) (*models.Task, error)
@@ -78,15 +78,15 @@ func (r *Repository) GetTaskByID(id uuid.UUID) (*models.Task, error) {
 func (r *Repository) GetAllTasks(limit, offset int) ([]models.Task, error) {
 	var tasks []models.Task
 	query := r.db.Model(&models.Task{})
-	
+
 	if limit > 0 {
 		query = query.Limit(limit)
 	}
-	
+
 	if offset > 0 {
 		query = query.Offset(offset)
 	}
-	
+
 	err := query.Order("created_at DESC").Find(&tasks).Error
 	return tasks, err
 }
@@ -95,15 +95,15 @@ func (r *Repository) GetAllTasks(limit, offset int) ([]models.Task, error) {
 func (r *Repository) GetTasksByStatus(status models.TaskStatus, limit, offset int) ([]models.Task, error) {
 	var tasks []models.Task
 	query := r.db.Where("status = ?", status)
-	
+
 	if limit > 0 {
 		query = query.Limit(limit)
 	}
-	
+
 	if offset > 0 {
 		query = query.Offset(offset)
 	}
-	
+
 	err := query.Order("created_at DESC").Find(&tasks).Error
 	return tasks, err
 }
@@ -119,15 +119,15 @@ func (r *Repository) UpdateTaskStatus(id uuid.UUID, status models.TaskStatus) er
 		"status":     status,
 		"updated_at": time.Now(),
 	})
-	
+
 	if result.Error != nil {
 		return result.Error
 	}
-	
+
 	if result.RowsAffected == 0 {
 		return fmt.Errorf("task with id %s not found", id)
 	}
-	
+
 	return nil
 }
 
@@ -137,11 +137,11 @@ func (r *Repository) DeleteTask(id uuid.UUID) error {
 	if result.Error != nil {
 		return result.Error
 	}
-	
+
 	if result.RowsAffected == 0 {
 		return fmt.Errorf("task with id %s not found", id)
 	}
-	
+
 	return nil
 }
 
@@ -184,7 +184,7 @@ func (r *Repository) GetPendingTasks() ([]models.Task, error) {
 }
 
 // Create creates a new task execution result
-func (r *Repository) CreateTaskResult(result *models.TaskExecutionResult) error {	
+func (r *Repository) CreateTaskResult(result *models.TaskExecutionResult) error {
 	taskResult := &models.TaskExecutionResult{
 		ID:        uuid.New(),
 		TaskID:    result.TaskID,
