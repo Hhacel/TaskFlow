@@ -7,7 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/hhace/taskflow/apps/api/config"
 	"github.com/hhace/taskflow/apps/api/internal/api"
-	"github.com/hhace/taskflow/models"
+	"github.com/hhace/taskflow/internal/task"
 	"github.com/hhace/taskflow/pkg/persistence"
 	"github.com/hhace/taskflow/pkg/tfutil"
 	"github.com/oapi-codegen/runtime/types"
@@ -39,10 +39,10 @@ func (s *SchedulerServer) CreateTask(c *gin.Context) {
 	}
 
 	// Create new task
-	task := &models.Task{
+	task := &task.Task{
 		Schedule: req.Schedule,
-		Command:  models.StringArray(req.Command),
-		Status:   models.TaskStatusPending,
+		Command:  task.StringArray(req.Command),
+		Status:   task.TaskStatusPending,
 	}
 
 	if err := s.repo.CreateTask(task); err != nil {
@@ -78,11 +78,11 @@ func (s *SchedulerServer) GetTask(c *gin.Context, id types.UUID) {
 
 // GetTasks implements task listing with optional filtering
 func (s *SchedulerServer) GetTasks(c *gin.Context, params api.GetTasksParams) {
-	var tasks []models.Task
+	var tasks []task.Task
 	var err error
 
 	if params.Status != nil {
-		// Convert API status to models status
+		// Convert API status to task status
 		status := s.apiStatusToModelStatus(*params.Status)
 		tasks, err = s.repo.GetTasksByStatus(status, 50, 0)
 	} else {
@@ -113,7 +113,7 @@ func (s *SchedulerServer) GetTasks(c *gin.Context, params api.GetTasksParams) {
 
 // Helper functions
 
-func (s *SchedulerServer) taskToResponse(task *models.Task) api.TaskResponse {
+func (s *SchedulerServer) taskToResponse(task *task.Task) api.TaskResponse {
 	return api.TaskResponse{
 		Id:        &task.ID,
 		Schedule:  &task.Schedule,
@@ -124,28 +124,28 @@ func (s *SchedulerServer) taskToResponse(task *models.Task) api.TaskResponse {
 	}
 }
 
-func (s *SchedulerServer) apiStatusToModelStatus(status api.GetTasksParamsStatus) models.TaskStatus {
+func (s *SchedulerServer) apiStatusToModelStatus(status api.GetTasksParamsStatus) task.TaskStatus {
 	switch status {
 	case api.GetTasksParamsStatusPending:
-		return models.TaskStatusPending
+		return task.TaskStatusPending
 	case api.GetTasksParamsStatusCompleted:
-		return models.TaskStatusCompleted
+		return task.TaskStatusCompleted
 	case api.GetTasksParamsStatusFailed:
-		return models.TaskStatusFailed
+		return task.TaskStatusFailed
 	default:
-		return models.TaskStatusCreated
+		return task.TaskStatusCreated
 	}
 }
 
-func (s *SchedulerServer) modelStatusToAPIStatus(status models.TaskStatus) api.TaskResponseStatus {
+func (s *SchedulerServer) modelStatusToAPIStatus(status task.TaskStatus) api.TaskResponseStatus {
 	switch status {
-	case models.TaskStatusCreated:
+	case task.TaskStatusCreated:
 		return api.TaskResponseStatusPending
-	case models.TaskStatusPending:
+	case task.TaskStatusPending:
 		return api.TaskResponseStatusPending
-	case models.TaskStatusCompleted:
+	case task.TaskStatusCompleted:
 		return api.TaskResponseStatusCompleted
-	case models.TaskStatusFailed:
+	case task.TaskStatusFailed:
 		return api.TaskResponseStatusFailed
 	default:
 		return api.TaskResponseStatusPending

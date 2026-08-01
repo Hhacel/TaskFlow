@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hhace/taskflow/apps/worker/config"
-	"github.com/hhace/taskflow/models"
+	"github.com/hhace/taskflow/internal/task"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/assert"
@@ -180,18 +180,18 @@ func TestTaskConsumer_Start(t *testing.T) {
 func TestTaskConsumer_HandleTask(t *testing.T) {
 	tests := []struct {
 		name           string
-		task           *models.Task
-		validateResult func(t *testing.T, result *models.TaskExecutionResult)
+		task           *task.Task
+		validateResult func(t *testing.T, result *task.TaskExecutionResult)
 	}{
 		{
 			name: "processes valid task successfully",
-			task: &models.Task{
+			task: &task.Task{
 				ID:       uuid.New(),
 				Schedule: "0 */5 * * * *",
-				Command:  models.StringArray{"echo", "test"},
-				Status:   models.TaskStatusPending,
+				Command:  task.StringArray{"echo", "test"},
+				Status:   task.TaskStatusPending,
 			},
-			validateResult: func(t *testing.T, result *models.TaskExecutionResult) {
+			validateResult: func(t *testing.T, result *task.TaskExecutionResult) {
 				assert.NotEqual(t, uuid.Nil, result.TaskID)
 				assert.False(t, result.StartTime.IsZero())
 				assert.False(t, result.EndTime.IsZero())
@@ -199,26 +199,26 @@ func TestTaskConsumer_HandleTask(t *testing.T) {
 		},
 		{
 			name: "processes task with empty command",
-			task: &models.Task{
+			task: &task.Task{
 				ID:       uuid.New(),
 				Schedule: "0 */10 * * * *",
-				Command:  models.StringArray{},
-				Status:   models.TaskStatusPending,
+				Command:  task.StringArray{},
+				Status:   task.TaskStatusPending,
 			},
-			validateResult: func(t *testing.T, result *models.TaskExecutionResult) {
+			validateResult: func(t *testing.T, result *task.TaskExecutionResult) {
 				assert.False(t, result.Success)
 				assert.Equal(t, "empty command", result.Error)
 			},
 		},
 		{
 			name: "processes task with invalid command",
-			task: &models.Task{
+			task: &task.Task{
 				ID:       uuid.New(),
 				Schedule: "0 */15 * * * *",
-				Command:  models.StringArray{"nonexistentcommand12345"},
-				Status:   models.TaskStatusPending,
+				Command:  task.StringArray{"nonexistentcommand12345"},
+				Status:   task.TaskStatusPending,
 			},
-			validateResult: func(t *testing.T, result *models.TaskExecutionResult) {
+			validateResult: func(t *testing.T, result *task.TaskExecutionResult) {
 				assert.False(t, result.Success)
 				assert.NotEmpty(t, result.Error)
 			},
@@ -253,9 +253,9 @@ func TestTaskConsumer_HandleTask(t *testing.T) {
 			require.NoError(t, err)
 
 			// Subscribe to results to capture published result
-			resultChan := make(chan *models.TaskExecutionResult, 1)
+			resultChan := make(chan *task.TaskExecutionResult, 1)
 			_, err = nc.Subscribe(cfg.NATS.TaskResultSubject, func(msg *nats.Msg) {
-				var result models.TaskExecutionResult
+				var result task.TaskExecutionResult
 				if err := json.Unmarshal(msg.Data, &result); err == nil {
 					resultChan <- &result
 				}
@@ -285,11 +285,11 @@ func TestTaskConsumer_HandleTask(t *testing.T) {
 func TestTaskConsumer_PublishResult(t *testing.T) {
 	tests := []struct {
 		name   string
-		result *models.TaskExecutionResult
+		result *task.TaskExecutionResult
 	}{
 		{
 			name: "publishes successful result",
-			result: &models.TaskExecutionResult{
+			result: &task.TaskExecutionResult{
 				TaskID:    uuid.New(),
 				Success:   true,
 				Output:    "test output",
@@ -300,7 +300,7 @@ func TestTaskConsumer_PublishResult(t *testing.T) {
 		},
 		{
 			name: "publishes failed result",
-			result: &models.TaskExecutionResult{
+			result: &task.TaskExecutionResult{
 				TaskID:    uuid.New(),
 				Success:   false,
 				Output:    "",
@@ -311,7 +311,7 @@ func TestTaskConsumer_PublishResult(t *testing.T) {
 		},
 		{
 			name: "publishes result with empty output",
-			result: &models.TaskExecutionResult{
+			result: &task.TaskExecutionResult{
 				TaskID:    uuid.New(),
 				Success:   true,
 				Output:    "",
@@ -347,9 +347,9 @@ func TestTaskConsumer_PublishResult(t *testing.T) {
 			defer consumer.Stop()
 
 			// Subscribe to results
-			resultChan := make(chan *models.TaskExecutionResult, 1)
+			resultChan := make(chan *task.TaskExecutionResult, 1)
 			_, err = nc.Subscribe(cfg.NATS.TaskResultSubject, func(msg *nats.Msg) {
-				var result models.TaskExecutionResult
+				var result task.TaskExecutionResult
 				if err := json.Unmarshal(msg.Data, &result); err == nil {
 					resultChan <- &result
 				}
@@ -455,9 +455,9 @@ func TestTaskConsumer_InvalidJSON(t *testing.T) {
 	require.NoError(t, err)
 
 	// Subscribe to results - should not receive anything for invalid JSON
-	resultChan := make(chan *models.TaskExecutionResult, 1)
+	resultChan := make(chan *task.TaskExecutionResult, 1)
 	_, err = nc.Subscribe(cfg.NATS.TaskResultSubject, func(msg *nats.Msg) {
-		var result models.TaskExecutionResult
+		var result task.TaskExecutionResult
 		if err := json.Unmarshal(msg.Data, &result); err == nil {
 			resultChan <- &result
 		}
@@ -504,9 +504,9 @@ func TestTaskConsumer_MultipleTasksSequential(t *testing.T) {
 	require.NoError(t, err)
 
 	// Subscribe to results
-	resultChan := make(chan *models.TaskExecutionResult, 3)
+	resultChan := make(chan *task.TaskExecutionResult, 3)
 	_, err = nc.Subscribe(cfg.NATS.TaskResultSubject, func(msg *nats.Msg) {
-		var result models.TaskExecutionResult
+		var result task.TaskExecutionResult
 		if err := json.Unmarshal(msg.Data, &result); err == nil {
 			resultChan <- &result
 		}
@@ -515,24 +515,24 @@ func TestTaskConsumer_MultipleTasksSequential(t *testing.T) {
 	nc.Flush()
 
 	// Create and publish multiple tasks
-	tasks := []*models.Task{
+	tasks := []*task.Task{
 		{
 			ID:       uuid.New(),
 			Schedule: "0 */5 * * * *",
-			Command:  models.StringArray{"echo", "task1"},
-			Status:   models.TaskStatusPending,
+			Command:  task.StringArray{"echo", "task1"},
+			Status:   task.TaskStatusPending,
 		},
 		{
 			ID:       uuid.New(),
 			Schedule: "0 */10 * * * *",
-			Command:  models.StringArray{"echo", "task2"},
-			Status:   models.TaskStatusPending,
+			Command:  task.StringArray{"echo", "task2"},
+			Status:   task.TaskStatusPending,
 		},
 		{
 			ID:       uuid.New(),
 			Schedule: "0 */15 * * * *",
-			Command:  models.StringArray{"echo", "task3"},
-			Status:   models.TaskStatusPending,
+			Command:  task.StringArray{"echo", "task3"},
+			Status:   task.TaskStatusPending,
 		},
 	}
 

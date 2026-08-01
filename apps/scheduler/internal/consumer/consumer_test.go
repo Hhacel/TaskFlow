@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hhace/taskflow/apps/scheduler/config"
-	"github.com/hhace/taskflow/models"
+	"github.com/hhace/taskflow/internal/task"
 	"github.com/hhace/taskflow/pkg/persistence"
 	"github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/assert"
@@ -84,13 +84,13 @@ func TestResultConsumer_HandleResult(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		result         models.TaskExecutionResult
+		result         task.TaskExecutionResult
 		mockSetup      func(*persistence.MockRepository)
-		expectedStatus models.TaskStatus
+		expectedStatus task.TaskStatus
 	}{
 		{
 			name: "success - task completed successfully",
-			result: models.TaskExecutionResult{
+			result: task.TaskExecutionResult{
 				ID:        uuid.New(),
 				TaskID:    taskID,
 				Success:   true,
@@ -101,14 +101,14 @@ func TestResultConsumer_HandleResult(t *testing.T) {
 				Duration:  "5s",
 			},
 			mockSetup: func(m *persistence.MockRepository) {
-				m.On("UpdateTaskStatus", taskID, models.TaskStatusCompleted).Return(nil).Once()
-				m.On("CreateTaskResult", mock.AnythingOfType("*models.TaskExecutionResult")).Return(nil).Once()
+				m.On("UpdateTaskStatus", taskID, task.TaskStatusCompleted).Return(nil).Once()
+				m.On("CreateTaskResult", mock.AnythingOfType("*task.TaskExecutionResult")).Return(nil).Once()
 			},
-			expectedStatus: models.TaskStatusCompleted,
+			expectedStatus: task.TaskStatusCompleted,
 		},
 		{
 			name: "success - task failed with error",
-			result: models.TaskExecutionResult{
+			result: task.TaskExecutionResult{
 				ID:        uuid.New(),
 				TaskID:    taskID,
 				Success:   false,
@@ -119,14 +119,14 @@ func TestResultConsumer_HandleResult(t *testing.T) {
 				Duration:  "1s",
 			},
 			mockSetup: func(m *persistence.MockRepository) {
-				m.On("UpdateTaskStatus", taskID, models.TaskStatusFailed).Return(nil).Once()
-				m.On("CreateTaskResult", mock.AnythingOfType("*models.TaskExecutionResult")).Return(nil).Once()
+				m.On("UpdateTaskStatus", taskID, task.TaskStatusFailed).Return(nil).Once()
+				m.On("CreateTaskResult", mock.AnythingOfType("*task.TaskExecutionResult")).Return(nil).Once()
 			},
-			expectedStatus: models.TaskStatusFailed,
+			expectedStatus: task.TaskStatusFailed,
 		},
 		{
 			name: "success - task failed with empty error but success=false",
-			result: models.TaskExecutionResult{
+			result: task.TaskExecutionResult{
 				ID:        uuid.New(),
 				TaskID:    taskID,
 				Success:   false,
@@ -137,14 +137,14 @@ func TestResultConsumer_HandleResult(t *testing.T) {
 				Duration:  "2s",
 			},
 			mockSetup: func(m *persistence.MockRepository) {
-				m.On("UpdateTaskStatus", taskID, models.TaskStatusFailed).Return(nil).Once()
-				m.On("CreateTaskResult", mock.AnythingOfType("*models.TaskExecutionResult")).Return(nil).Once()
+				m.On("UpdateTaskStatus", taskID, task.TaskStatusFailed).Return(nil).Once()
+				m.On("CreateTaskResult", mock.AnythingOfType("*task.TaskExecutionResult")).Return(nil).Once()
 			},
-			expectedStatus: models.TaskStatusFailed,
+			expectedStatus: task.TaskStatusFailed,
 		},
 		{
 			name: "error - UpdateTaskStatus fails for completed task",
-			result: models.TaskExecutionResult{
+			result: task.TaskExecutionResult{
 				ID:        uuid.New(),
 				TaskID:    taskID,
 				Success:   true,
@@ -155,14 +155,14 @@ func TestResultConsumer_HandleResult(t *testing.T) {
 				Duration:  "3s",
 			},
 			mockSetup: func(m *persistence.MockRepository) {
-				m.On("UpdateTaskStatus", taskID, models.TaskStatusCompleted).Return(assert.AnError).Once()
+				m.On("UpdateTaskStatus", taskID, task.TaskStatusCompleted).Return(assert.AnError).Once()
 				// CreateTaskResult should not be called when UpdateTaskStatus fails
 			},
-			expectedStatus: models.TaskStatusCompleted,
+			expectedStatus: task.TaskStatusCompleted,
 		},
 		{
 			name: "error - UpdateTaskStatus fails for failed task",
-			result: models.TaskExecutionResult{
+			result: task.TaskExecutionResult{
 				ID:        uuid.New(),
 				TaskID:    taskID,
 				Success:   false,
@@ -173,14 +173,14 @@ func TestResultConsumer_HandleResult(t *testing.T) {
 				Duration:  "1s",
 			},
 			mockSetup: func(m *persistence.MockRepository) {
-				m.On("UpdateTaskStatus", taskID, models.TaskStatusFailed).Return(assert.AnError).Once()
+				m.On("UpdateTaskStatus", taskID, task.TaskStatusFailed).Return(assert.AnError).Once()
 				// CreateTaskResult should not be called when UpdateTaskStatus fails
 			},
-			expectedStatus: models.TaskStatusFailed,
+			expectedStatus: task.TaskStatusFailed,
 		},
 		{
 			name: "error - CreateTaskResult fails",
-			result: models.TaskExecutionResult{
+			result: task.TaskExecutionResult{
 				ID:        uuid.New(),
 				TaskID:    taskID,
 				Success:   true,
@@ -191,10 +191,10 @@ func TestResultConsumer_HandleResult(t *testing.T) {
 				Duration:  "4s",
 			},
 			mockSetup: func(m *persistence.MockRepository) {
-				m.On("UpdateTaskStatus", taskID, models.TaskStatusCompleted).Return(nil).Once()
-				m.On("CreateTaskResult", mock.AnythingOfType("*models.TaskExecutionResult")).Return(assert.AnError).Once()
+				m.On("UpdateTaskStatus", taskID, task.TaskStatusCompleted).Return(nil).Once()
+				m.On("CreateTaskResult", mock.AnythingOfType("*task.TaskExecutionResult")).Return(assert.AnError).Once()
 			},
-			expectedStatus: models.TaskStatusCompleted,
+			expectedStatus: task.TaskStatusCompleted,
 		},
 	}
 

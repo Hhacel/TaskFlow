@@ -7,7 +7,7 @@ import (
 	"os/exec"
 	"time"
 
-	"github.com/hhace/taskflow/models"
+	"github.com/hhace/taskflow/internal/task"
 )
 
 // TaskExecutor handles the execution of tasks
@@ -24,16 +24,16 @@ func NewTaskExecutor(timeout time.Duration) *TaskExecutor {
 
 
 // Execute runs the task command and returns the result
-func (e *TaskExecutor) Execute(task *models.Task) *models.TaskExecutionResult {
-	result := &models.TaskExecutionResult{
-		TaskID:    task.ID,
+func (e *TaskExecutor) Execute(t *task.Task) *task.TaskExecutionResult {
+	result := &task.TaskExecutionResult{
+		TaskID:    t.ID,
 		StartTime: time.Now(),
 	}
 
-	slog.Info("Executing task", "taskId", task.ID, "command", task.Command)
+	slog.Info("Executing task", "taskId", t.ID, "command", t.Command)
 
 	// Validate command
-	if len(task.Command) == 0 {
+	if len(t.Command) == 0 {
 		result.Success = false
 		result.Error = "empty command"
 		result.EndTime = time.Now()
@@ -46,10 +46,10 @@ func (e *TaskExecutor) Execute(task *models.Task) *models.TaskExecutionResult {
 
 	// Prepare command
 	var cmd *exec.Cmd
-	if len(task.Command) == 1 {
-		cmd = exec.CommandContext(ctx, task.Command[0])
+	if len(t.Command) == 1 {
+		cmd = exec.CommandContext(ctx, t.Command[0])
 	} else {
-		cmd = exec.CommandContext(ctx, task.Command[0], task.Command[1:]...)
+		cmd = exec.CommandContext(ctx, t.Command[0], t.Command[1:]...)
 	}
 
 	// Execute command and capture output
@@ -65,7 +65,7 @@ func (e *TaskExecutor) Execute(task *models.Task) *models.TaskExecutionResult {
 			result.Error = err.Error()
 		}
 		slog.Error("Task execution failed",
-			"taskId", task.ID,
+			"taskId", t.ID,
 			"error", result.Error,
 			"output", result.Output,
 			"duration", result.EndTime.Sub(result.StartTime))
@@ -74,7 +74,7 @@ func (e *TaskExecutor) Execute(task *models.Task) *models.TaskExecutionResult {
 
 	result.Success = true
 	slog.Info("Task execution completed",
-		"taskId", task.ID,
+		"taskId", t.ID,
 		"duration", result.EndTime.Sub(result.StartTime))
 	return result
 }

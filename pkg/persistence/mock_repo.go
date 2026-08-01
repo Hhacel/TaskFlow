@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/hhace/taskflow/models"
+	"github.com/hhace/taskflow/internal/task"
 	"github.com/stretchr/testify/mock"
 )
 
@@ -17,35 +17,35 @@ func NewMockRepository() *MockRepository {
 }
 
 // Task methods
-func (m *MockRepository) CreateTask(task *models.Task) error {
+func (m *MockRepository) CreateTask(task *task.Task) error {
 	args := m.Called(task)
 	return args.Error(0)
 }
 
-func (m *MockRepository) GetTaskByID(id uuid.UUID) (*models.Task, error) {
+func (m *MockRepository) GetTaskByID(id uuid.UUID) (*task.Task, error) {
 	args := m.Called(id)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*models.Task), args.Error(1)
+	return args.Get(0).(*task.Task), args.Error(1)
 }
 
-func (m *MockRepository) GetAllTasks(limit, offset int) ([]models.Task, error) {
+func (m *MockRepository) GetAllTasks(limit, offset int) ([]task.Task, error) {
 	args := m.Called(limit, offset)
-	return args.Get(0).([]models.Task), args.Error(1)
+	return args.Get(0).([]task.Task), args.Error(1)
 }
 
-func (m *MockRepository) GetTasksByStatus(status models.TaskStatus, limit, offset int) ([]models.Task, error) {
+func (m *MockRepository) GetTasksByStatus(status task.TaskStatus, limit, offset int) ([]task.Task, error) {
 	args := m.Called(status, limit, offset)
-	return args.Get(0).([]models.Task), args.Error(1)
+	return args.Get(0).([]task.Task), args.Error(1)
 }
 
-func (m *MockRepository) UpdateTask(task *models.Task) error {
+func (m *MockRepository) UpdateTask(task *task.Task) error {
 	args := m.Called(task)
 	return args.Error(0)
 }
 
-func (m *MockRepository) UpdateTaskStatus(id uuid.UUID, status models.TaskStatus) error {
+func (m *MockRepository) UpdateTaskStatus(id uuid.UUID, status task.TaskStatus) error {
 	args := m.Called(id, status)
 	return args.Error(0)
 }
@@ -60,71 +60,71 @@ func (m *MockRepository) CountTasks() (int64, error) {
 	return args.Get(0).(int64), args.Error(1)
 }
 
-func (m *MockRepository) CountTasksByStatus(status models.TaskStatus) (int64, error) {
+func (m *MockRepository) CountTasksByStatus(status task.TaskStatus) (int64, error) {
 	args := m.Called(status)
 	return args.Get(0).(int64), args.Error(1)
 }
 
-func (m *MockRepository) GetTasksCreatedAfter(after time.Time) ([]models.Task, error) {
+func (m *MockRepository) GetTasksCreatedAfter(after time.Time) ([]task.Task, error) {
 	args := m.Called(after)
-	return args.Get(0).([]models.Task), args.Error(1)
+	return args.Get(0).([]task.Task), args.Error(1)
 }
 
-func (m *MockRepository) GetTasksUpdatedAfter(after time.Time) ([]models.Task, error) {
+func (m *MockRepository) GetTasksUpdatedAfter(after time.Time) ([]task.Task, error) {
 	args := m.Called(after)
-	return args.Get(0).([]models.Task), args.Error(1)
+	return args.Get(0).([]task.Task), args.Error(1)
 }
 
-func (m *MockRepository) GetCreatedTasks() ([]models.Task, error) {
+func (m *MockRepository) GetCreatedTasks() ([]task.Task, error) {
 	args := m.Called()
-	return args.Get(0).([]models.Task), args.Error(1)
+	return args.Get(0).([]task.Task), args.Error(1)
 }
 
-func (m *MockRepository) GetPendingTasks() ([]models.Task, error) {
+func (m *MockRepository) GetPendingTasks() ([]task.Task, error) {
 	args := m.Called()
-	return args.Get(0).([]models.Task), args.Error(1)
+	return args.Get(0).([]task.Task), args.Error(1)
 }
 
 // TaskExecutionResult methods
-func (m *MockRepository) CreateTaskResult(result *models.TaskExecutionResult) error {
+func (m *MockRepository) CreateTaskResult(result *task.TaskExecutionResult) error {
 	args := m.Called(result)
 	return args.Error(0)
 }
 
-func (m *MockRepository) GetTaskResultByID(id uuid.UUID) (*models.TaskExecutionResult, error) {
+func (m *MockRepository) GetTaskResultByID(id uuid.UUID) (*task.TaskExecutionResult, error) {
 	args := m.Called(id)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*models.TaskExecutionResult), args.Error(1)
+	return args.Get(0).(*task.TaskExecutionResult), args.Error(1)
 }
 
-func (m *MockRepository) GetTaskResultsByTaskID(taskID uuid.UUID, limit, offset int) ([]models.TaskExecutionResult, error) {
+func (m *MockRepository) GetTaskResultsByTaskID(taskID uuid.UUID, limit, offset int) ([]task.TaskExecutionResult, error) {
 	args := m.Called(taskID, limit, offset)
-	return args.Get(0).([]models.TaskExecutionResult), args.Error(1)
+	return args.Get(0).([]task.TaskExecutionResult), args.Error(1)
 }
 
-func (m *MockRepository) GetAllTaskResults(limit, offset int) ([]models.TaskExecutionResult, error) {
+func (m *MockRepository) GetAllTaskResults(limit, offset int) ([]task.TaskExecutionResult, error) {
 	args := m.Called(limit, offset)
-	return args.Get(0).([]models.TaskExecutionResult), args.Error(1)
+	return args.Get(0).([]task.TaskExecutionResult), args.Error(1)
 }
 
-func (m *MockRepository) GetSuccessfulTaskResults(limit, offset int) ([]models.TaskExecutionResult, error) {
+func (m *MockRepository) GetSuccessfulTaskResults(limit, offset int) ([]task.TaskExecutionResult, error) {
 	args := m.Called(limit, offset)
-	return args.Get(0).([]models.TaskExecutionResult), args.Error(1)
+	return args.Get(0).([]task.TaskExecutionResult), args.Error(1)
 }
 
-func (m *MockRepository) GetFailedTaskResults(limit, offset int) ([]models.TaskExecutionResult, error) {
+func (m *MockRepository) GetFailedTaskResults(limit, offset int) ([]task.TaskExecutionResult, error) {
 	args := m.Called(limit, offset)
-	return args.Get(0).([]models.TaskExecutionResult), args.Error(1)
+	return args.Get(0).([]task.TaskExecutionResult), args.Error(1)
 }
 
-func (m *MockRepository) GetLatestTaskResultByTaskID(taskID uuid.UUID) (*models.TaskExecutionResult, error) {
+func (m *MockRepository) GetLatestTaskResultByTaskID(taskID uuid.UUID) (*task.TaskExecutionResult, error) {
 	args := m.Called(taskID)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*models.TaskExecutionResult), args.Error(1)
+	return args.Get(0).(*task.TaskExecutionResult), args.Error(1)
 }
 
 func (m *MockRepository) DeleteTaskResult(id uuid.UUID) error {
@@ -157,14 +157,14 @@ func (m *MockRepository) CountFailedTaskResults() (int64, error) {
 	return args.Get(0).(int64), args.Error(1)
 }
 
-func (m *MockRepository) GetTaskResultsExecutedAfter(after time.Time) ([]models.TaskExecutionResult, error) {
+func (m *MockRepository) GetTaskResultsExecutedAfter(after time.Time) ([]task.TaskExecutionResult, error) {
 	args := m.Called(after)
-	return args.Get(0).([]models.TaskExecutionResult), args.Error(1)
+	return args.Get(0).([]task.TaskExecutionResult), args.Error(1)
 }
 
-func (m *MockRepository) GetTaskResultsCreatedAfter(after time.Time) ([]models.TaskExecutionResult, error) {
+func (m *MockRepository) GetTaskResultsCreatedAfter(after time.Time) ([]task.TaskExecutionResult, error) {
 	args := m.Called(after)
-	return args.Get(0).([]models.TaskExecutionResult), args.Error(1)
+	return args.Get(0).([]task.TaskExecutionResult), args.Error(1)
 }
 
 // Transaction method

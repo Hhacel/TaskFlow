@@ -1,30 +1,78 @@
 package persistence
 
 import (
+	"fmt"
+	"os"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/hhace/taskflow/models"
+	"github.com/hhace/taskflow/internal/task"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
+var testDB *gorm.DB
+
+func TestMain(m *testing.M) {
+	// Allow skipping the integration suite via env var `TEST_SHORT=1`.
+	// Avoid calling testing.Short() here (flags not parsed at TestMain invocation).
+	if os.Getenv("TEST_SHORT") == "1" {
+		os.Exit(0)
+	}
+
+	// Initialize shared DB for all tests
+	cfg := getTestDBConfig()
+	var err error
+	testDB, err = Connect(cfg, 3)
+	if err != nil {
+		// fatal to ensure CI fails fast if DB isn't available
+		fmt.Fprintf(os.Stderr, "failed to connect to test database: %v\n", err)
+		os.Exit(1)
+	}
+
+	if err := Migrate(testDB); err != nil {
+		fmt.Fprintf(os.Stderr, "failed to migrate test database: %v\n", err)
+		Close(testDB)
+		os.Exit(1)
+	}
+
+	// Run tests
+	code := m.Run()
+
+	// Cleanup
+	Close(testDB)
+	os.Exit(code)
+}
+
 func setupTestDB(t *testing.T) *gorm.DB {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
 
-	// Auto migrate
-	err = db.AutoMigrate(&models.Task{}, &models.TaskExecutionResult{})
-	require.NoError(t, err)
+	if testDB == nil {
+		t.Fatal("test database not initialized")
+	}
 
-	return db
+	// Clean up any existing test data between tests
+	if err := testDB.Exec("TRUNCATE tasks, task_execution_results CASCADE").Error; err != nil {
+		t.Fatalf("failed to truncate tables: %v", err)
+	}
+
+	return testDB
+}
+
+func cleanupTestDB(t *testing.T, db *gorm.DB) {
+	// Only truncate; do not close shared DB here
+	if err := db.Exec("TRUNCATE tasks, task_execution_results CASCADE").Error; err != nil {
+		t.Fatalf("failed to truncate tables during cleanup: %v", err)
+	}
 }
 
 func TestNewRepository(t *testing.T) {
 	db := setupTestDB(t)
+	defer cleanupTestDB(t, db)
+
 	repo := NewRepository(db)
 	assert.NotNil(t, repo)
 	assert.Equal(t, db, repo.db)
@@ -33,12 +81,14 @@ func TestNewRepository(t *testing.T) {
 // Task CRUD tests
 func TestRepository_CreateTask(t *testing.T) {
 	db := setupTestDB(t)
+	defer cleanupTestDB(t, db)
+
 	repo := NewRepository(db)
 
-	task := &models.Task{
+	task := &task.Task{
 		Schedule: "*/5 * * * *",
-		Command:  models.StringArray{"echo", "test"},
-		Status:   models.TaskStatusCreated,
+		Command:  task.StringArray{"echo", "test"},
+		Status:   task.TaskStatusCreated,
 	}
 
 	err := repo.CreateTask(task)
@@ -48,6 +98,8 @@ func TestRepository_CreateTask(t *testing.T) {
 
 func TestRepository_GetTaskByID(t *testing.T) {
 	db := setupTestDB(t)
+	defer cleanupTestDB(t, db)
+
 	repo := NewRepository(db)
 
 	tests := []struct {
@@ -58,10 +110,10 @@ func TestRepository_GetTaskByID(t *testing.T) {
 		{
 			name: "existing task",
 			setup: func() uuid.UUID {
-				task := &models.Task{
+				task := &task.Task{
 					Schedule: "*/5 * * * *",
-					Command:  models.StringArray{"echo", "test"},
-					Status:   models.TaskStatusCreated,
+					Command:  task.StringArray{"echo", "test"},
+					Status:   task.TaskStatusCreated,
 				}
 				repo.CreateTask(task)
 				return task.ID
@@ -100,10 +152,10 @@ func TestRepository_GetAllTasks(t *testing.T) {
 
 	// Create test tasks
 	for i := 0; i < 5; i++ {
-		task := &models.Task{
+		task := &task.Task{
 			Schedule: "*/5 * * * *",
-			Command:  models.StringArray{"echo", "test"},
-			Status:   models.TaskStatusCreated,
+			Command:  task.StringArray{"echo", "test"},
+			Status:   task.TaskStatusCreated,
 		}
 		repo.CreateTask(task)
 	}
@@ -134,18 +186,18 @@ func TestRepository_GetTasksByStatus(t *testing.T) {
 	repo := NewRepository(db)
 
 	// Create tasks with different statuses
-	statuses := []models.TaskStatus{
-		models.TaskStatusCreated,
-		models.TaskStatusPending,
-		models.TaskStatusCompleted,
-		models.TaskStatusFailed,
+	statuses := []task.TaskStatus{
+		task.TaskStatusCreated,
+		task.TaskStatusPending,
+		task.TaskStatusCompleted,
+		task.TaskStatusFailed,
 	}
 
 	for _, status := range statuses {
 		for i := 0; i < 2; i++ {
-			task := &models.Task{
+			task := &task.Task{
 				Schedule: "*/5 * * * *",
-				Command:  models.StringArray{"echo", "test"},
+				Command:  task.StringArray{"echo", "test"},
 				Status:   status,
 			}
 			repo.CreateTask(task)
@@ -154,15 +206,15 @@ func TestRepository_GetTasksByStatus(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		status    models.TaskStatus
+		status    task.TaskStatus
 		limit     int
 		offset    int
 		wantCount int
 	}{
-		{"get created tasks", models.TaskStatusCreated, 0, 0, 2},
-		{"get pending tasks", models.TaskStatusPending, 0, 0, 2},
-		{"get completed tasks with limit", models.TaskStatusCompleted, 1, 0, 1},
-		{"get failed tasks with offset", models.TaskStatusFailed, 0, 1, 1},
+		{"get created tasks", task.TaskStatusCreated, 0, 0, 2},
+		{"get pending tasks", task.TaskStatusPending, 0, 0, 2},
+		{"get completed tasks with limit", task.TaskStatusCompleted, 1, 0, 1},
+		{"get failed tasks with offset", task.TaskStatusFailed, 0, 1, 1},
 	}
 
 	for _, tt := range tests {
@@ -181,25 +233,25 @@ func TestRepository_UpdateTask(t *testing.T) {
 	db := setupTestDB(t)
 	repo := NewRepository(db)
 
-	task := &models.Task{
+	taskModel := &task.Task{
 		Schedule: "*/5 * * * *",
-		Command:  models.StringArray{"echo", "test"},
-		Status:   models.TaskStatusCreated,
+		Command:  task.StringArray{"echo", "test"},
+		Status:   task.TaskStatusCreated,
 	}
-	repo.CreateTask(task)
+	repo.CreateTask(taskModel)
 
 	// Update task
-	task.Schedule = "*/10 * * * *"
-	task.Status = models.TaskStatusPending
+	taskModel.Schedule = "*/10 * * * *"
+	taskModel.Status = task.TaskStatusPending
 
-	err := repo.UpdateTask(task)
+	err := repo.UpdateTask(taskModel)
 	assert.NoError(t, err)
 
 	// Verify update
-	updated, err := repo.GetTaskByID(task.ID)
+	updated, err := repo.GetTaskByID(taskModel.ID)
 	assert.NoError(t, err)
 	assert.Equal(t, "*/10 * * * *", updated.Schedule)
-	assert.Equal(t, models.TaskStatusPending, updated.Status)
+	assert.Equal(t, task.TaskStatusPending, updated.Status)
 }
 
 func TestRepository_UpdateTaskStatus(t *testing.T) {
@@ -209,21 +261,21 @@ func TestRepository_UpdateTaskStatus(t *testing.T) {
 	tests := []struct {
 		name      string
 		setup     func() uuid.UUID
-		newStatus models.TaskStatus
+		newStatus task.TaskStatus
 		wantErr   bool
 	}{
 		{
 			name: "update existing task status",
 			setup: func() uuid.UUID {
-				task := &models.Task{
+				task := &task.Task{
 					Schedule: "*/5 * * * *",
-					Command:  models.StringArray{"echo", "test"},
-					Status:   models.TaskStatusCreated,
+					Command:  task.StringArray{"echo", "test"},
+					Status:   task.TaskStatusCreated,
 				}
 				repo.CreateTask(task)
 				return task.ID
 			},
-			newStatus: models.TaskStatusPending,
+			newStatus: task.TaskStatusPending,
 			wantErr:   false,
 		},
 		{
@@ -231,7 +283,7 @@ func TestRepository_UpdateTaskStatus(t *testing.T) {
 			setup: func() uuid.UUID {
 				return uuid.New()
 			},
-			newStatus: models.TaskStatusPending,
+			newStatus: task.TaskStatusPending,
 			wantErr:   true,
 		},
 	}
@@ -264,10 +316,10 @@ func TestRepository_DeleteTask(t *testing.T) {
 		{
 			name: "delete existing task",
 			setup: func() uuid.UUID {
-				task := &models.Task{
+				task := &task.Task{
 					Schedule: "*/5 * * * *",
-					Command:  models.StringArray{"echo", "test"},
-					Status:   models.TaskStatusCreated,
+					Command:  task.StringArray{"echo", "test"},
+					Status:   task.TaskStatusCreated,
 				}
 				repo.CreateTask(task)
 				return task.ID
@@ -305,10 +357,10 @@ func TestRepository_CountTasks(t *testing.T) {
 
 	// Create 3 tasks
 	for i := 0; i < 3; i++ {
-		task := &models.Task{
+		task := &task.Task{
 			Schedule: "*/5 * * * *",
-			Command:  models.StringArray{"echo", "test"},
-			Status:   models.TaskStatusCreated,
+			Command:  task.StringArray{"echo", "test"},
+			Status:   task.TaskStatusCreated,
 		}
 		repo.CreateTask(task)
 	}
@@ -324,25 +376,25 @@ func TestRepository_CountTasksByStatus(t *testing.T) {
 
 	// Create tasks with different statuses
 	for i := 0; i < 2; i++ {
-		repo.CreateTask(&models.Task{
+		repo.CreateTask(&task.Task{
 			Schedule: "*/5 * * * *",
-			Command:  models.StringArray{"echo", "test"},
-			Status:   models.TaskStatusCreated,
+			Command:  task.StringArray{"echo", "test"},
+			Status:   task.TaskStatusCreated,
 		})
 	}
 	for i := 0; i < 3; i++ {
-		repo.CreateTask(&models.Task{
+		repo.CreateTask(&task.Task{
 			Schedule: "*/5 * * * *",
-			Command:  models.StringArray{"echo", "test"},
-			Status:   models.TaskStatusPending,
+			Command:  task.StringArray{"echo", "test"},
+			Status:   task.TaskStatusPending,
 		})
 	}
 
-	count, err := repo.CountTasksByStatus(models.TaskStatusCreated)
+	count, err := repo.CountTasksByStatus(task.TaskStatusCreated)
 	assert.NoError(t, err)
 	assert.Equal(t, int64(2), count)
 
-	count, err = repo.CountTasksByStatus(models.TaskStatusPending)
+	count, err = repo.CountTasksByStatus(task.TaskStatusPending)
 	assert.NoError(t, err)
 	assert.Equal(t, int64(3), count)
 }
@@ -355,10 +407,10 @@ func TestRepository_GetTasksCreatedAfter(t *testing.T) {
 	time.Sleep(10 * time.Millisecond)
 
 	for i := 0; i < 3; i++ {
-		repo.CreateTask(&models.Task{
+		repo.CreateTask(&task.Task{
 			Schedule: "*/5 * * * *",
-			Command:  models.StringArray{"echo", "test"},
-			Status:   models.TaskStatusCreated,
+			Command:  task.StringArray{"echo", "test"},
+			Status:   task.TaskStatusCreated,
 		})
 	}
 
@@ -371,18 +423,18 @@ func TestRepository_GetTasksUpdatedAfter(t *testing.T) {
 	db := setupTestDB(t)
 	repo := NewRepository(db)
 
-	task := &models.Task{
+	taskObj := &task.Task{
 		Schedule: "*/5 * * * *",
-		Command:  models.StringArray{"echo", "test"},
-		Status:   models.TaskStatusCreated,
+		Command:  task.StringArray{"echo", "test"},
+		Status:   task.TaskStatusCreated,
 	}
-	repo.CreateTask(task)
+	repo.CreateTask(taskObj)
 
 	beforeUpdate := time.Now()
 	time.Sleep(10 * time.Millisecond)
 
 	// Update the task
-	repo.UpdateTaskStatus(task.ID, models.TaskStatusPending)
+	repo.UpdateTaskStatus(taskObj.ID, task.TaskStatusPending)
 
 	tasks, err := repo.GetTasksUpdatedAfter(beforeUpdate)
 	assert.NoError(t, err)
@@ -393,42 +445,42 @@ func TestRepository_GetCreatedTasks(t *testing.T) {
 	db := setupTestDB(t)
 	repo := NewRepository(db)
 
-	repo.CreateTask(&models.Task{
+	repo.CreateTask(&task.Task{
 		Schedule: "*/5 * * * *",
-		Command:  models.StringArray{"echo", "test"},
-		Status:   models.TaskStatusCreated,
+		Command:  task.StringArray{"echo", "test"},
+		Status:   task.TaskStatusCreated,
 	})
-	repo.CreateTask(&models.Task{
+	repo.CreateTask(&task.Task{
 		Schedule: "*/5 * * * *",
-		Command:  models.StringArray{"echo", "test"},
-		Status:   models.TaskStatusPending,
+		Command:  task.StringArray{"echo", "test"},
+		Status:   task.TaskStatusPending,
 	})
 
 	tasks, err := repo.GetCreatedTasks()
 	assert.NoError(t, err)
 	assert.Len(t, tasks, 1)
-	assert.Equal(t, models.TaskStatusCreated, tasks[0].Status)
+	assert.Equal(t, task.TaskStatusCreated, tasks[0].Status)
 }
 
 func TestRepository_GetPendingTasks(t *testing.T) {
 	db := setupTestDB(t)
 	repo := NewRepository(db)
 
-	repo.CreateTask(&models.Task{
+	repo.CreateTask(&task.Task{
 		Schedule: "*/5 * * * *",
-		Command:  models.StringArray{"echo", "test"},
-		Status:   models.TaskStatusCreated,
+		Command:  task.StringArray{"echo", "test"},
+		Status:   task.TaskStatusCreated,
 	})
-	repo.CreateTask(&models.Task{
+	repo.CreateTask(&task.Task{
 		Schedule: "*/5 * * * *",
-		Command:  models.StringArray{"echo", "test"},
-		Status:   models.TaskStatusPending,
+		Command:  task.StringArray{"echo", "test"},
+		Status:   task.TaskStatusPending,
 	})
 
 	tasks, err := repo.GetPendingTasks()
 	assert.NoError(t, err)
 	assert.Len(t, tasks, 1)
-	assert.Equal(t, models.TaskStatusPending, tasks[0].Status)
+	assert.Equal(t, task.TaskStatusPending, tasks[0].Status)
 }
 
 // TaskExecutionResult CRUD tests
@@ -437,7 +489,7 @@ func TestRepository_CreateTaskResult(t *testing.T) {
 	repo := NewRepository(db)
 
 	taskID := uuid.New()
-	result := &models.TaskExecutionResult{
+	result := &task.TaskExecutionResult{
 		TaskID:    taskID,
 		Success:   true,
 		Output:    "test output",
@@ -464,7 +516,7 @@ func TestRepository_GetTaskResultByID(t *testing.T) {
 		{
 			name: "existing result",
 			setup: func() uuid.UUID {
-				result := &models.TaskExecutionResult{
+				result := &task.TaskExecutionResult{
 					TaskID:    uuid.New(),
 					Success:   true,
 					Output:    "test",
@@ -511,7 +563,7 @@ func TestRepository_GetTaskResultsByTaskID(t *testing.T) {
 
 	// Create 3 results for the same task
 	for i := 0; i < 3; i++ {
-		result := &models.TaskExecutionResult{
+		result := &task.TaskExecutionResult{
 			TaskID:    taskID,
 			Success:   true,
 			Output:    "test",
@@ -548,7 +600,7 @@ func TestRepository_GetAllTaskResults(t *testing.T) {
 
 	// Create 5 results
 	for i := 0; i < 5; i++ {
-		result := &models.TaskExecutionResult{
+		result := &task.TaskExecutionResult{
 			TaskID:    uuid.New(),
 			Success:   true,
 			Output:    "test",
@@ -574,7 +626,7 @@ func TestRepository_GetSuccessfulTaskResults(t *testing.T) {
 
 	// Create successful results
 	for i := 0; i < 2; i++ {
-		repo.CreateTaskResult(&models.TaskExecutionResult{
+		repo.CreateTaskResult(&task.TaskExecutionResult{
 			TaskID:    uuid.New(),
 			Success:   true,
 			Output:    "success",
@@ -585,7 +637,7 @@ func TestRepository_GetSuccessfulTaskResults(t *testing.T) {
 	}
 
 	// Create failed result
-	repo.CreateTaskResult(&models.TaskExecutionResult{
+	repo.CreateTaskResult(&task.TaskExecutionResult{
 		TaskID:    uuid.New(),
 		Success:   false,
 		Error:     "failed",
@@ -607,7 +659,7 @@ func TestRepository_GetFailedTaskResults(t *testing.T) {
 	repo := NewRepository(db)
 
 	// Create successful result
-	repo.CreateTaskResult(&models.TaskExecutionResult{
+	repo.CreateTaskResult(&task.TaskExecutionResult{
 		TaskID:    uuid.New(),
 		Success:   true,
 		Output:    "success",
@@ -618,7 +670,7 @@ func TestRepository_GetFailedTaskResults(t *testing.T) {
 
 	// Create failed results
 	for i := 0; i < 2; i++ {
-		repo.CreateTaskResult(&models.TaskExecutionResult{
+		repo.CreateTaskResult(&task.TaskExecutionResult{
 			TaskID:    uuid.New(),
 			Success:   false,
 			Error:     "failed",
@@ -644,7 +696,7 @@ func TestRepository_GetLatestTaskResultByTaskID(t *testing.T) {
 
 	// Create results with different times
 	for i := 0; i < 3; i++ {
-		result := &models.TaskExecutionResult{
+		result := &task.TaskExecutionResult{
 			TaskID:    taskID,
 			Success:   true,
 			Output:    "test",
@@ -674,7 +726,7 @@ func TestRepository_DeleteTaskResult(t *testing.T) {
 		{
 			name: "delete existing result",
 			setup: func() uuid.UUID {
-				result := &models.TaskExecutionResult{
+				result := &task.TaskExecutionResult{
 					TaskID:    uuid.New(),
 					Success:   true,
 					Output:    "test",
@@ -720,7 +772,7 @@ func TestRepository_DeleteTaskResultsByTaskID(t *testing.T) {
 
 	// Create 3 results for the same task
 	for i := 0; i < 3; i++ {
-		repo.CreateTaskResult(&models.TaskExecutionResult{
+		repo.CreateTaskResult(&task.TaskExecutionResult{
 			TaskID:    taskID,
 			Success:   true,
 			Output:    "test",
@@ -742,7 +794,7 @@ func TestRepository_CountTaskResults(t *testing.T) {
 	repo := NewRepository(db)
 
 	for i := 0; i < 4; i++ {
-		repo.CreateTaskResult(&models.TaskExecutionResult{
+		repo.CreateTaskResult(&task.TaskExecutionResult{
 			TaskID:    uuid.New(),
 			Success:   true,
 			Output:    "test",
@@ -764,7 +816,7 @@ func TestRepository_CountTaskResultsByTaskID(t *testing.T) {
 	taskID := uuid.New()
 
 	for i := 0; i < 3; i++ {
-		repo.CreateTaskResult(&models.TaskExecutionResult{
+		repo.CreateTaskResult(&task.TaskExecutionResult{
 			TaskID:    taskID,
 			Success:   true,
 			Output:    "test",
@@ -785,7 +837,7 @@ func TestRepository_CountSuccessfulTaskResults(t *testing.T) {
 
 	// Create 2 successful results
 	for i := 0; i < 2; i++ {
-		repo.CreateTaskResult(&models.TaskExecutionResult{
+		repo.CreateTaskResult(&task.TaskExecutionResult{
 			TaskID:    uuid.New(),
 			Success:   true,
 			Output:    "success",
@@ -796,7 +848,7 @@ func TestRepository_CountSuccessfulTaskResults(t *testing.T) {
 	}
 
 	// Create 1 failed result
-	repo.CreateTaskResult(&models.TaskExecutionResult{
+	repo.CreateTaskResult(&task.TaskExecutionResult{
 		TaskID:    uuid.New(),
 		Success:   false,
 		Error:     "failed",
@@ -815,7 +867,7 @@ func TestRepository_CountFailedTaskResults(t *testing.T) {
 	repo := NewRepository(db)
 
 	// Create 1 successful result
-	repo.CreateTaskResult(&models.TaskExecutionResult{
+	repo.CreateTaskResult(&task.TaskExecutionResult{
 		TaskID:    uuid.New(),
 		Success:   true,
 		Output:    "success",
@@ -826,7 +878,7 @@ func TestRepository_CountFailedTaskResults(t *testing.T) {
 
 	// Create 3 failed results
 	for i := 0; i < 3; i++ {
-		repo.CreateTaskResult(&models.TaskExecutionResult{
+		repo.CreateTaskResult(&task.TaskExecutionResult{
 			TaskID:    uuid.New(),
 			Success:   false,
 			Error:     "failed",
@@ -849,7 +901,7 @@ func TestRepository_GetTaskResultsExecutedAfter(t *testing.T) {
 	time.Sleep(10 * time.Millisecond)
 
 	for i := 0; i < 2; i++ {
-		repo.CreateTaskResult(&models.TaskExecutionResult{
+		repo.CreateTaskResult(&task.TaskExecutionResult{
 			TaskID:    uuid.New(),
 			Success:   true,
 			Output:    "test",
@@ -875,7 +927,7 @@ func TestRepository_GetTaskResultsCreatedAfter(t *testing.T) {
 	time.Sleep(10 * time.Millisecond)
 
 	for i := 0; i < 3; i++ {
-		repo.CreateTaskResult(&models.TaskExecutionResult{
+		repo.CreateTaskResult(&task.TaskExecutionResult{
 			TaskID:    uuid.New(),
 			Success:   true,
 			Output:    "test",
@@ -896,10 +948,10 @@ func TestRepository_Transaction(t *testing.T) {
 
 	t.Run("successful transaction", func(t *testing.T) {
 		err := repo.Transaction(func(txRepo RepositoryInterface) error {
-			task := &models.Task{
+			task := &task.Task{
 				Schedule: "*/5 * * * *",
-				Command:  models.StringArray{"echo", "test"},
-				Status:   models.TaskStatusCreated,
+				Command:  task.StringArray{"echo", "test"},
+				Status:   task.TaskStatusCreated,
 			}
 			return txRepo.CreateTask(task)
 		})
@@ -913,10 +965,10 @@ func TestRepository_Transaction(t *testing.T) {
 		initialCount, _ := repo.CountTasks()
 
 		err := repo.Transaction(func(txRepo RepositoryInterface) error {
-			task := &models.Task{
+			task := &task.Task{
 				Schedule: "*/5 * * * *",
-				Command:  models.StringArray{"echo", "test"},
-				Status:   models.TaskStatusCreated,
+				Command:  task.StringArray{"echo", "test"},
+				Status:   task.TaskStatusCreated,
 			}
 			if err := txRepo.CreateTask(task); err != nil {
 				return err

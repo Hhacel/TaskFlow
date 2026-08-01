@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hhace/taskflow/apps/scheduler/config"
-	"github.com/hhace/taskflow/models"
+	"github.com/hhace/taskflow/internal/task"
 	"github.com/hhace/taskflow/pkg/persistence"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
@@ -61,40 +61,40 @@ func TestTaskScheduler_AddTask(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		task           *models.Task
+		task           *task.Task
 		existingJobs   map[uuid.UUID]bool
 		wantErr        bool
 		expectedErrMsg string
 	}{
 		{
 			name: "success - adds new task with valid cron expression",
-			task: &models.Task{
+			task: &task.Task{
 				ID:       uuid.New(),
 				Schedule: "0 */5 * * * *", // Every 5 minutes
-				Command:  models.StringArray{"echo", "test"},
-				Status:   models.TaskStatusCreated,
+				Command:  task.StringArray{"echo", "test"},
+				Status:   task.TaskStatusCreated,
 			},
 			existingJobs: map[uuid.UUID]bool{},
 			wantErr:      false,
 		},
 		{
 			name: "success - skips already scheduled task",
-			task: &models.Task{
+			task: &task.Task{
 				ID:       uuid.New(),
 				Schedule: "0 0 * * * *", // Every hour
-				Command:  models.StringArray{"echo", "existing"},
-				Status:   models.TaskStatusCreated,
+				Command:  task.StringArray{"echo", "existing"},
+				Status:   task.TaskStatusCreated,
 			},
 			existingJobs: map[uuid.UUID]bool{},
 			wantErr:      false,
 		},
 		{
 			name: "error - invalid cron expression",
-			task: &models.Task{
+			task: &task.Task{
 				ID:       uuid.New(),
 				Schedule: "invalid cron",
-				Command:  models.StringArray{"echo", "test"},
-				Status:   models.TaskStatusCreated,
+				Command:  task.StringArray{"echo", "test"},
+				Status:   task.TaskStatusCreated,
 			},
 			existingJobs:   map[uuid.UUID]bool{},
 			wantErr:        true,
@@ -102,11 +102,11 @@ func TestTaskScheduler_AddTask(t *testing.T) {
 		},
 		{
 			name: "success - adds task with seconds-based cron",
-			task: &models.Task{
+			task: &task.Task{
 				ID:       uuid.New(),
 				Schedule: "*/30 * * * * *", // Every 30 seconds
-				Command:  models.StringArray{"echo", "seconds"},
-				Status:   models.TaskStatusCreated,
+				Command:  task.StringArray{"echo", "seconds"},
+				Status:   task.TaskStatusCreated,
 			},
 			existingJobs: map[uuid.UUID]bool{},
 			wantErr:      false,
@@ -186,10 +186,10 @@ func TestTaskScheduler_RemoveTask(t *testing.T) {
 
 			// Schedule the task if needed
 			if tt.taskScheduled {
-				task := &models.Task{
+				task := &task.Task{
 					ID:       tt.taskID,
 					Schedule: "0 */5 * * * *",
-					Command:  models.StringArray{"echo", "test"},
+					Command:  task.StringArray{"echo", "test"},
 				}
 				err := scheduler.AddTask(task)
 				require.NoError(t, err)
@@ -231,7 +231,7 @@ func TestTaskScheduler_LoadTasks(t *testing.T) {
 		{
 			name: "success - loads tasks from empty database",
 			mockSetup: func(m *persistence.MockRepository) {
-				m.On("GetAllTasks", 0, 0).Return([]models.Task{}, nil).Once()
+				m.On("GetAllTasks", 0, 0).Return([]task.Task{}, nil).Once()
 			},
 			existingTasks: map[uuid.UUID]bool{},
 			expectedJobs:  0,
@@ -240,18 +240,18 @@ func TestTaskScheduler_LoadTasks(t *testing.T) {
 		{
 			name: "success - loads multiple tasks",
 			mockSetup: func(m *persistence.MockRepository) {
-				tasks := []models.Task{
+				tasks := []task.Task{
 					{
 						ID:       taskID1,
 						Schedule: "0 */5 * * * *",
-						Command:  models.StringArray{"echo", "1"},
-						Status:   models.TaskStatusCreated,
+						Command:  task.StringArray{"echo", "1"},
+						Status:   task.TaskStatusCreated,
 					},
 					{
 						ID:       taskID2,
 						Schedule: "0 0 * * * *",
-						Command:  models.StringArray{"echo", "2"},
-						Status:   models.TaskStatusCreated,
+						Command:  task.StringArray{"echo", "2"},
+						Status:   task.TaskStatusCreated,
 					},
 				}
 				m.On("GetAllTasks", 0, 0).Return(tasks, nil).Once()
@@ -263,12 +263,12 @@ func TestTaskScheduler_LoadTasks(t *testing.T) {
 		{
 			name: "success - removes tasks not in database",
 			mockSetup: func(m *persistence.MockRepository) {
-				tasks := []models.Task{
+				tasks := []task.Task{
 					{
 						ID:       taskID1,
 						Schedule: "0 */5 * * * *",
-						Command:  models.StringArray{"echo", "1"},
-						Status:   models.TaskStatusCreated,
+						Command:  task.StringArray{"echo", "1"},
+						Status:   task.TaskStatusCreated,
 					},
 				}
 				m.On("GetAllTasks", 0, 0).Return(tasks, nil).Once()
@@ -283,7 +283,7 @@ func TestTaskScheduler_LoadTasks(t *testing.T) {
 		{
 			name: "error - database fetch fails",
 			mockSetup: func(m *persistence.MockRepository) {
-				m.On("GetAllTasks", 0, 0).Return([]models.Task{}, assert.AnError).Once()
+				m.On("GetAllTasks", 0, 0).Return([]task.Task{}, assert.AnError).Once()
 			},
 			existingTasks: map[uuid.UUID]bool{},
 			expectedJobs:  0,
@@ -292,18 +292,18 @@ func TestTaskScheduler_LoadTasks(t *testing.T) {
 		{
 			name: "partial success - skips task with invalid cron",
 			mockSetup: func(m *persistence.MockRepository) {
-				tasks := []models.Task{
+				tasks := []task.Task{
 					{
 						ID:       taskID1,
 						Schedule: "0 */5 * * * *",
-						Command:  models.StringArray{"echo", "valid"},
-						Status:   models.TaskStatusCreated,
+						Command:  task.StringArray{"echo", "valid"},
+						Status:   task.TaskStatusCreated,
 					},
 					{
 						ID:       taskID3,
 						Schedule: "invalid cron",
-						Command:  models.StringArray{"echo", "invalid"},
-						Status:   models.TaskStatusCreated,
+						Command:  task.StringArray{"echo", "invalid"},
+						Status:   task.TaskStatusCreated,
 					},
 				}
 				m.On("GetAllTasks", 0, 0).Return(tasks, nil).Once()
@@ -324,10 +324,10 @@ func TestTaskScheduler_LoadTasks(t *testing.T) {
 
 			// Pre-populate existing tasks
 			for taskID := range tt.existingTasks {
-				task := &models.Task{
+				task := &task.Task{
 					ID:       taskID,
 					Schedule: "0 */5 * * * *",
-					Command:  models.StringArray{"echo", "test"},
+					Command:  task.StringArray{"echo", "test"},
 				}
 				_ = scheduler.AddTask(task)
 			}
@@ -359,19 +359,19 @@ func TestTaskScheduler_Start(t *testing.T) {
 		{
 			name: "success - starts with no tasks",
 			mockSetup: func(m *persistence.MockRepository) {
-				m.On("GetAllTasks", 0, 0).Return([]models.Task{}, nil).Once()
+				m.On("GetAllTasks", 0, 0).Return([]task.Task{}, nil).Once()
 			},
 			wantErr: false,
 		},
 		{
 			name: "success - starts with tasks",
 			mockSetup: func(m *persistence.MockRepository) {
-				tasks := []models.Task{
+				tasks := []task.Task{
 					{
 						ID:       uuid.New(),
 						Schedule: "0 */5 * * * *",
-						Command:  models.StringArray{"echo", "test"},
-						Status:   models.TaskStatusCreated,
+						Command:  task.StringArray{"echo", "test"},
+						Status:   task.TaskStatusCreated,
 					},
 				}
 				m.On("GetAllTasks", 0, 0).Return(tasks, nil).Once()
@@ -381,7 +381,7 @@ func TestTaskScheduler_Start(t *testing.T) {
 		{
 			name: "error - fails to load tasks",
 			mockSetup: func(m *persistence.MockRepository) {
-				m.On("GetAllTasks", 0, 0).Return([]models.Task{}, assert.AnError).Once()
+				m.On("GetAllTasks", 0, 0).Return([]task.Task{}, assert.AnError).Once()
 			},
 			wantErr: true,
 		},
@@ -423,7 +423,7 @@ func TestTaskScheduler_Stop(t *testing.T) {
 		{
 			name: "success - stops scheduler",
 			mockSetup: func(m *persistence.MockRepository) {
-				m.On("GetAllTasks", 0, 0).Return([]models.Task{}, nil).Once()
+				m.On("GetAllTasks", 0, 0).Return([]task.Task{}, nil).Once()
 			},
 		},
 	}
@@ -483,20 +483,20 @@ func TestTaskScheduler_ExecuteTask(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		task      *models.Task
+		task      *task.Task
 		mockSetup func(*persistence.MockRepository)
 		verify    func(*testing.T, *nats.Conn)
 	}{
 		{
 			name: "success - publishes task to NATS",
-			task: &models.Task{
+			task: &task.Task{
 				ID:       taskID,
 				Schedule: "0 */5 * * * *",
-				Command:  models.StringArray{"echo", "test"},
-				Status:   models.TaskStatusCreated,
+				Command:  task.StringArray{"echo", "test"},
+				Status:   task.TaskStatusCreated,
 			},
 			mockSetup: func(m *persistence.MockRepository) {
-				m.On("UpdateTaskStatus", taskID, models.TaskStatusPending).Return(nil).Once()
+				m.On("UpdateTaskStatus", taskID, task.TaskStatusPending).Return(nil).Once()
 			},
 			verify: func(t *testing.T, nc *nats.Conn) {
 				// Verify message was published by subscribing
@@ -519,14 +519,14 @@ func TestTaskScheduler_ExecuteTask(t *testing.T) {
 		},
 		{
 			name: "error - UpdateTaskStatus fails",
-			task: &models.Task{
+			task: &task.Task{
 				ID:       taskID,
 				Schedule: "0 */5 * * * *",
-				Command:  models.StringArray{"echo", "test"},
-				Status:   models.TaskStatusCreated,
+				Command:  task.StringArray{"echo", "test"},
+				Status:   task.TaskStatusCreated,
 			},
 			mockSetup: func(m *persistence.MockRepository) {
-				m.On("UpdateTaskStatus", taskID, models.TaskStatusPending).Return(assert.AnError).Once()
+				m.On("UpdateTaskStatus", taskID, task.TaskStatusPending).Return(assert.AnError).Once()
 			},
 			verify: nil,
 		},

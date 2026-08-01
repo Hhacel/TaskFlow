@@ -15,7 +15,25 @@ logs:
 
 # Development commands
 test:
-	@powershell -Command "$$packages = go list ./... | Where-Object { $$_ -notmatch '/cmd$$' -and $$_ -notmatch '/internal/api$$' }; go test $$packages -cover"
+	@powershell -Command "$$packages = go list ./... | Where-Object { $$_ -notmatch '/cmd$$' -and $$_ -notmatch '/internal/api$$' -and $$_ -notmatch '/pkg/persistence$$' }; go test $$packages -cover"
+
+# Run unit tests only (fast)
+test-unit:
+	@powershell -Command "$$packages = go list ./... | Where-Object { $$_ -notmatch '/cmd$$' -and $$_ -notmatch '/internal/api$$' -and $$_ -notmatch '/pkg/persistence$$' }; go test $$packages -short -cover"
+
+# Persistence integration tests (requires PostgreSQL)
+test-persistence:
+	@echo "Starting test database..."
+	docker-compose -f docker-compose.test.yaml up -d
+	@echo "Waiting for database to be ready..."
+	@powershell -Command "Start-Sleep -Seconds 5"
+	@echo "Running persistence tests..."
+	@powershell -Command "$$env:TEST_DB_HOST='localhost'; $$env:TEST_DB_PORT='5433'; $$env:TEST_DB_USER='taskflow'; $$env:TEST_DB_PASSWORD='taskflow'; $$env:TEST_DB_NAME='taskflow_test'; go test ./pkg/persistence/... -v -cover"
+	@echo "Stopping test database..."
+	docker-compose -f docker-compose.test.yaml down
+
+# Run all tests including integration tests
+test-all: test test-persistence
 
 clean:
 	docker-compose down -v

@@ -13,7 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/hhace/taskflow/apps/api/config"
 	"github.com/hhace/taskflow/apps/api/internal/api"
-	"github.com/hhace/taskflow/models"
+	"github.com/hhace/taskflow/internal/task"
 	"github.com/hhace/taskflow/pkg/persistence"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -69,8 +69,8 @@ func TestSchedulerServer_CreateTask(t *testing.T) {
 				Command:  []string{"echo", "test"},
 			},
 			mockSetup: func(m *persistence.MockRepository) {
-				m.On("CreateTask", mock.AnythingOfType("*models.Task")).Return(nil).Run(func(args mock.Arguments) {
-					task := args.Get(0).(*models.Task)
+				m.On("CreateTask", mock.AnythingOfType("*task.Task")).Return(nil).Run(func(args mock.Arguments) {
+					task := args.Get(0).(*task.Task)
 					task.ID = uuid.New()
 					task.CreatedAt = time.Now()
 					task.UpdatedAt = time.Now()
@@ -107,7 +107,7 @@ func TestSchedulerServer_CreateTask(t *testing.T) {
 				Command:  []string{"ls"},
 			},
 			mockSetup: func(m *persistence.MockRepository) {
-				m.On("CreateTask", mock.AnythingOfType("*models.Task")).Return(errors.New("database error"))
+				m.On("CreateTask", mock.AnythingOfType("*task.Task")).Return(errors.New("database error"))
 			},
 			expectedStatus: http.StatusInternalServerError,
 			validateResp: func(t *testing.T, rec *httptest.ResponseRecorder) {
@@ -125,8 +125,8 @@ func TestSchedulerServer_CreateTask(t *testing.T) {
 				Command:  []string{"bash", "-c", "echo hello"},
 			},
 			mockSetup: func(m *persistence.MockRepository) {
-				m.On("CreateTask", mock.AnythingOfType("*models.Task")).Return(nil).Run(func(args mock.Arguments) {
-					task := args.Get(0).(*models.Task)
+				m.On("CreateTask", mock.AnythingOfType("*task.Task")).Return(nil).Run(func(args mock.Arguments) {
+					task := args.Get(0).(*task.Task)
 					task.ID = uuid.New()
 					task.CreatedAt = time.Now()
 					task.UpdatedAt = time.Now()
@@ -194,11 +194,11 @@ func TestSchedulerServer_GetTask(t *testing.T) {
 			name:   "retrieves task successfully",
 			taskID: testID,
 			mockSetup: func(m *persistence.MockRepository) {
-				task := &models.Task{
+				task := &task.Task{
 					ID:        testID,
 					Schedule:  "0 */5 * * * *",
-					Command:   models.StringArray{"echo", "test"},
-					Status:    models.TaskStatusPending,
+					Command:   task.StringArray{"echo", "test"},
+					Status:    task.TaskStatusPending,
 					CreatedAt: testTime,
 					UpdatedAt: testTime,
 				}
@@ -234,11 +234,11 @@ func TestSchedulerServer_GetTask(t *testing.T) {
 			name:   "retrieves completed task",
 			taskID: testID,
 			mockSetup: func(m *persistence.MockRepository) {
-				task := &models.Task{
+				task := &task.Task{
 					ID:        testID,
 					Schedule:  "0 0 * * * *",
-					Command:   models.StringArray{"ls", "-la"},
-					Status:    models.TaskStatusCompleted,
+					Command:   task.StringArray{"ls", "-la"},
+					Status:    task.TaskStatusCompleted,
 					CreatedAt: testTime,
 					UpdatedAt: testTime,
 				}
@@ -298,20 +298,20 @@ func TestSchedulerServer_GetTasks(t *testing.T) {
 			name:        "retrieves all tasks successfully",
 			queryParams: "",
 			mockSetup: func(m *persistence.MockRepository) {
-				tasks := []models.Task{
+				tasks := []task.Task{
 					{
 						ID:        uuid.New(),
 						Schedule:  "0 */5 * * * *",
-						Command:   models.StringArray{"echo", "task1"},
-						Status:    models.TaskStatusPending,
+						Command:   task.StringArray{"echo", "task1"},
+						Status:    task.TaskStatusPending,
 						CreatedAt: testTime,
 						UpdatedAt: testTime,
 					},
 					{
 						ID:        uuid.New(),
 						Schedule:  "0 */10 * * * *",
-						Command:   models.StringArray{"echo", "task2"},
-						Status:    models.TaskStatusCompleted,
+						Command:   task.StringArray{"echo", "task2"},
+						Status:    task.TaskStatusCompleted,
 						CreatedAt: testTime,
 						UpdatedAt: testTime,
 					},
@@ -332,17 +332,17 @@ func TestSchedulerServer_GetTasks(t *testing.T) {
 			name:        "retrieves tasks filtered by pending status",
 			queryParams: "?status=pending",
 			mockSetup: func(m *persistence.MockRepository) {
-				tasks := []models.Task{
+				tasks := []task.Task{
 					{
 						ID:        uuid.New(),
 						Schedule:  "0 */5 * * * *",
-						Command:   models.StringArray{"echo", "pending"},
-						Status:    models.TaskStatusPending,
+						Command:   task.StringArray{"echo", "pending"},
+						Status:    task.TaskStatusPending,
 						CreatedAt: testTime,
 						UpdatedAt: testTime,
 					},
 				}
-				m.On("GetTasksByStatus", models.TaskStatusPending, 50, 0).Return(tasks, nil)
+				m.On("GetTasksByStatus", task.TaskStatusPending, 50, 0).Return(tasks, nil)
 			},
 			expectedStatus: http.StatusOK,
 			validateResp: func(t *testing.T, rec *httptest.ResponseRecorder) {
@@ -357,17 +357,17 @@ func TestSchedulerServer_GetTasks(t *testing.T) {
 			name:        "retrieves tasks filtered by completed status",
 			queryParams: "?status=completed",
 			mockSetup: func(m *persistence.MockRepository) {
-				tasks := []models.Task{
+				tasks := []task.Task{
 					{
 						ID:        uuid.New(),
 						Schedule:  "0 0 * * * *",
-						Command:   models.StringArray{"ls"},
-						Status:    models.TaskStatusCompleted,
+						Command:   task.StringArray{"ls"},
+						Status:    task.TaskStatusCompleted,
 						CreatedAt: testTime,
 						UpdatedAt: testTime,
 					},
 				}
-				m.On("GetTasksByStatus", models.TaskStatusCompleted, 50, 0).Return(tasks, nil)
+				m.On("GetTasksByStatus", task.TaskStatusCompleted, 50, 0).Return(tasks, nil)
 			},
 			expectedStatus: http.StatusOK,
 			validateResp: func(t *testing.T, rec *httptest.ResponseRecorder) {
@@ -382,17 +382,17 @@ func TestSchedulerServer_GetTasks(t *testing.T) {
 			name:        "retrieves tasks filtered by failed status",
 			queryParams: "?status=failed",
 			mockSetup: func(m *persistence.MockRepository) {
-				tasks := []models.Task{
+				tasks := []task.Task{
 					{
 						ID:        uuid.New(),
 						Schedule:  "0 0 * * * *",
-						Command:   models.StringArray{"false"},
-						Status:    models.TaskStatusFailed,
+						Command:   task.StringArray{"false"},
+						Status:    task.TaskStatusFailed,
 						CreatedAt: testTime,
 						UpdatedAt: testTime,
 					},
 				}
-				m.On("GetTasksByStatus", models.TaskStatusFailed, 50, 0).Return(tasks, nil)
+				m.On("GetTasksByStatus", task.TaskStatusFailed, 50, 0).Return(tasks, nil)
 			},
 			expectedStatus: http.StatusOK,
 			validateResp: func(t *testing.T, rec *httptest.ResponseRecorder) {
@@ -407,7 +407,7 @@ func TestSchedulerServer_GetTasks(t *testing.T) {
 			name:        "returns empty list when no tasks exist",
 			queryParams: "",
 			mockSetup: func(m *persistence.MockRepository) {
-				tasks := []models.Task{}
+				tasks := []task.Task{}
 				m.On("GetAllTasks", 50, 0).Return(tasks, nil)
 			},
 			expectedStatus: http.StatusOK,
@@ -427,7 +427,7 @@ func TestSchedulerServer_GetTasks(t *testing.T) {
 			name:        "returns internal server error when repo fails",
 			queryParams: "",
 			mockSetup: func(m *persistence.MockRepository) {
-				m.On("GetAllTasks", 50, 0).Return([]models.Task{}, errors.New("database error"))
+				m.On("GetAllTasks", 50, 0).Return([]task.Task{}, errors.New("database error"))
 			},
 			expectedStatus: http.StatusInternalServerError,
 			validateResp: func(t *testing.T, rec *httptest.ResponseRecorder) {
@@ -442,7 +442,7 @@ func TestSchedulerServer_GetTasks(t *testing.T) {
 			name:        "returns internal server error when filtered repo fails",
 			queryParams: "?status=pending",
 			mockSetup: func(m *persistence.MockRepository) {
-				m.On("GetTasksByStatus", models.TaskStatusPending, 50, 0).Return([]models.Task{}, errors.New("database error"))
+				m.On("GetTasksByStatus", task.TaskStatusPending, 50, 0).Return([]task.Task{}, errors.New("database error"))
 			},
 			expectedStatus: http.StatusInternalServerError,
 			validateResp: func(t *testing.T, rec *httptest.ResponseRecorder) {
@@ -494,11 +494,11 @@ func TestSchedulerServer_StatusConversions(t *testing.T) {
 	t.Run("apiStatusToModelStatus conversions", func(t *testing.T) {
 		tests := []struct {
 			apiStatus   api.GetTasksParamsStatus
-			modelStatus models.TaskStatus
+			modelStatus task.TaskStatus
 		}{
-			{api.GetTasksParamsStatusPending, models.TaskStatusPending},
-			{api.GetTasksParamsStatusCompleted, models.TaskStatusCompleted},
-			{api.GetTasksParamsStatusFailed, models.TaskStatusFailed},
+			{api.GetTasksParamsStatusPending, task.TaskStatusPending},
+			{api.GetTasksParamsStatusCompleted, task.TaskStatusCompleted},
+			{api.GetTasksParamsStatusFailed, task.TaskStatusFailed},
 		}
 
 		for _, tt := range tests {
@@ -509,13 +509,13 @@ func TestSchedulerServer_StatusConversions(t *testing.T) {
 
 	t.Run("modelStatusToAPIStatus conversions", func(t *testing.T) {
 		tests := []struct {
-			modelStatus models.TaskStatus
+			modelStatus task.TaskStatus
 			apiStatus   api.TaskResponseStatus
 		}{
-			{models.TaskStatusCreated, api.TaskResponseStatusPending},
-			{models.TaskStatusPending, api.TaskResponseStatusPending},
-			{models.TaskStatusCompleted, api.TaskResponseStatusCompleted},
-			{models.TaskStatusFailed, api.TaskResponseStatusFailed},
+			{task.TaskStatusCreated, api.TaskResponseStatusPending},
+			{task.TaskStatusPending, api.TaskResponseStatusPending},
+			{task.TaskStatusCompleted, api.TaskResponseStatusCompleted},
+			{task.TaskStatusFailed, api.TaskResponseStatusFailed},
 		}
 
 		for _, tt := range tests {
@@ -532,16 +532,16 @@ func TestSchedulerServer_TaskToResponse(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		task     *models.Task
+		task     *task.Task
 		validate func(*testing.T, api.TaskResponse)
 	}{
 		{
 			name: "converts pending task correctly",
-			task: &models.Task{
+			task: &task.Task{
 				ID:        testID,
 				Schedule:  "0 */5 * * * *",
-				Command:   models.StringArray{"echo", "test"},
-				Status:    models.TaskStatusPending,
+				Command:   task.StringArray{"echo", "test"},
+				Status:    task.TaskStatusPending,
 				CreatedAt: testTime,
 				UpdatedAt: testTime,
 			},
@@ -556,11 +556,11 @@ func TestSchedulerServer_TaskToResponse(t *testing.T) {
 		},
 		{
 			name: "converts completed task correctly",
-			task: &models.Task{
+			task: &task.Task{
 				ID:        testID,
 				Schedule:  "0 0 * * * *",
-				Command:   models.StringArray{"ls", "-la"},
-				Status:    models.TaskStatusCompleted,
+				Command:   task.StringArray{"ls", "-la"},
+				Status:    task.TaskStatusCompleted,
 				CreatedAt: testTime,
 				UpdatedAt: testTime,
 			},
@@ -571,11 +571,11 @@ func TestSchedulerServer_TaskToResponse(t *testing.T) {
 		},
 		{
 			name: "converts failed task correctly",
-			task: &models.Task{
+			task: &task.Task{
 				ID:        testID,
 				Schedule:  "0 0 * * * *",
-				Command:   models.StringArray{"false"},
-				Status:    models.TaskStatusFailed,
+				Command:   task.StringArray{"false"},
+				Status:    task.TaskStatusFailed,
 				CreatedAt: testTime,
 				UpdatedAt: testTime,
 			},

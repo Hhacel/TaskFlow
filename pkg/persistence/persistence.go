@@ -7,7 +7,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/hhace/taskflow/models"
+	"github.com/hhace/taskflow/internal/task"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -105,7 +105,7 @@ func Close(db *gorm.DB) error {
 	return sqlDB.Close()
 }
 
-// Migrate runs auto migration for all models
+// Migrate runs auto migration for all task
 func Migrate(db *gorm.DB) error {
 	if db == nil {
 		return fmt.Errorf("database not connected")
@@ -116,11 +116,11 @@ func Migrate(db *gorm.DB) error {
 		return fmt.Errorf("failed to create uuid extension: %w", err)
 	}
 
-	// Auto migrate your models here
+	// Auto migrate your task here
 	err := db.AutoMigrate(
-		&models.Task{},
-		&models.TaskExecutionResult{},
-		// Add other models here as needed
+		&task.Task{},
+		&task.TaskExecutionResult{},
+		// Add other task here as needed
 	)
 
 	if err != nil {

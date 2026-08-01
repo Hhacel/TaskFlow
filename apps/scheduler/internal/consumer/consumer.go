@@ -6,7 +6,7 @@ import (
 	"log/slog"
 
 	"github.com/hhace/taskflow/apps/scheduler/config"
-	"github.com/hhace/taskflow/models"
+	"github.com/hhace/taskflow/internal/task"
 	"github.com/hhace/taskflow/pkg/persistence"
 	"github.com/nats-io/nats.go"
 )
@@ -58,7 +58,7 @@ func (c *ResultConsumer) handleResult(msg *nats.Msg) {
 	slog.Info("Received result message", "subject", msg.Subject)
 
 	// Parse result from message
-	var result models.TaskExecutionResult
+	var result task.TaskExecutionResult
 	if err := json.Unmarshal(msg.Data, &result); err != nil {
 		slog.Error("Failed to unmarshal result", "error", err)
 		return
@@ -68,12 +68,12 @@ func (c *ResultConsumer) handleResult(msg *nats.Msg) {
 
 	// Update task status in database
 	if result.Error == "" && result.Success == true {
-		if err := c.repo.UpdateTaskStatus(result.TaskID, models.TaskStatusCompleted); err != nil {
+		if err := c.repo.UpdateTaskStatus(result.TaskID, task.TaskStatusCompleted); err != nil {
 			slog.Error("Failed to update task status", "taskId", result.TaskID, "error", err)
 			return
 		}
 	} else {
-		if err := c.repo.UpdateTaskStatus(result.TaskID, models.TaskStatusFailed); err != nil {
+		if err := c.repo.UpdateTaskStatus(result.TaskID, task.TaskStatusFailed); err != nil {
 			slog.Error("Failed to update task status", "taskId", result.TaskID, "error", err)
 			return
 		}

@@ -9,7 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hhace/taskflow/apps/scheduler/config"
-	"github.com/hhace/taskflow/models"
+	tasks "github.com/hhace/taskflow/internal/task"
 	"github.com/hhace/taskflow/pkg/persistence"
 	"github.com/nats-io/nats.go"
 	"github.com/robfig/cron/v3"
@@ -103,7 +103,7 @@ func (ts *TaskScheduler) loadTasks() error {
 }
 
 // AddTask schedules a new task
-func (ts *TaskScheduler) AddTask(task *models.Task) error {
+func (ts *TaskScheduler) AddTask(task *tasks.Task) error {
 	ts.mu.Lock()
 	defer ts.mu.Unlock()
 
@@ -145,11 +145,11 @@ func (ts *TaskScheduler) RemoveTask(taskID uuid.UUID) error {
 }
 
 // executeTask publishes the task to NATS for worker execution
-func (ts *TaskScheduler) executeTask(task *models.Task) {
+func (ts *TaskScheduler) executeTask(task *tasks.Task) {
 	slog.Info("Executing scheduled task", "taskId", task.ID, "schedule", task.Schedule)
 
 	// Update task status to pending (ready for worker)
-	if err := ts.repo.UpdateTaskStatus(task.ID, models.TaskStatusPending); err != nil {
+	if err := ts.repo.UpdateTaskStatus(task.ID, tasks.TaskStatusPending); err != nil {
 		slog.Error("Failed to update task status to pending", "taskId", task.ID, "error", err)
 		return
 	}
@@ -166,7 +166,7 @@ func (ts *TaskScheduler) executeTask(task *models.Task) {
 		slog.Error("Failed to publish task to NATS", "taskId", task.ID, "error", err)
 
 		// Revert status back to created
-		if updateErr := ts.repo.UpdateTaskStatus(task.ID, models.TaskStatusCreated); updateErr != nil {
+		if updateErr := ts.repo.UpdateTaskStatus(task.ID, tasks.TaskStatusCreated); updateErr != nil {
 			slog.Error("Failed to revert task status to created", "taskId", task.ID, "error", updateErr)
 		}
 		return

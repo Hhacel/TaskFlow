@@ -8,7 +8,7 @@ import (
 
 	"github.com/hhace/taskflow/apps/worker/config"
 	"github.com/hhace/taskflow/apps/worker/internal/executor"
-	"github.com/hhace/taskflow/models"
+	"github.com/hhace/taskflow/internal/task"
 	"github.com/nats-io/nats.go"
 )
 
@@ -74,7 +74,7 @@ func (c *TaskConsumer) handleTask(msg *nats.Msg) {
 	slog.Debug("Received task message", "subject", msg.Subject)
 
 	// Parse task from message
-	var task models.Task
+	var task task.Task
 	if err := json.Unmarshal(msg.Data, &task); err != nil {
 		slog.Error("Failed to unmarshal task", "error", err)
 		return
@@ -95,7 +95,7 @@ func (c *TaskConsumer) handleTask(msg *nats.Msg) {
 }
 
 // publishResult sends the execution result to the results queue
-func (c *TaskConsumer) publishResult(result *models.TaskExecutionResult) error {
+func (c *TaskConsumer) publishResult(result *task.TaskExecutionResult) error {
 	resultJSON, err := json.Marshal(result)
 	if err != nil {
 		return fmt.Errorf("failed to marshal task result: %w", err)
