@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os/exec"
+	"runtime"
 	"time"
 
 	"github.com/hhace/taskflow/internal/task"
@@ -22,7 +23,6 @@ func NewTaskExecutor(timeout time.Duration) *TaskExecutor {
 	}
 }
 
-
 // Execute runs the task command and returns the result
 func (e *TaskExecutor) Execute(t *task.Task) *task.TaskExecutionResult {
 	result := &task.TaskExecutionResult{
@@ -33,7 +33,7 @@ func (e *TaskExecutor) Execute(t *task.Task) *task.TaskExecutionResult {
 	slog.Info("Executing task", "taskId", t.ID, "command", t.Command)
 
 	// Validate command
-	if len(t.Command) == 0 {
+	if t.Command == "" {
 		result.Success = false
 		result.Error = "empty command"
 		result.EndTime = time.Now()
@@ -44,12 +44,12 @@ func (e *TaskExecutor) Execute(t *task.Task) *task.TaskExecutionResult {
 	ctx, cancel := context.WithTimeout(context.Background(), e.timeout)
 	defer cancel()
 
-	// Prepare command
+	// Prepare command: run via platform shell (cmd on Windows, sh otherwise)
 	var cmd *exec.Cmd
-	if len(t.Command) == 1 {
-		cmd = exec.CommandContext(ctx, t.Command[0])
+	if runtime.GOOS == "windows" {
+		cmd = exec.CommandContext(ctx, "cmd", "/C", t.Command)
 	} else {
-		cmd = exec.CommandContext(ctx, t.Command[0], t.Command[1:]...)
+		cmd = exec.CommandContext(ctx, "sh", "-c", t.Command)
 	}
 
 	// Execute command and capture output

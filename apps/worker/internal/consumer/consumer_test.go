@@ -188,7 +188,7 @@ func TestTaskConsumer_HandleTask(t *testing.T) {
 			task: &task.Task{
 				ID:       uuid.New(),
 				Schedule: "0 */5 * * * *",
-				Command:  task.StringArray{"echo", "test"},
+				Command:  "echo test",
 				Status:   task.TaskStatusPending,
 			},
 			validateResult: func(t *testing.T, result *task.TaskExecutionResult) {
@@ -202,7 +202,7 @@ func TestTaskConsumer_HandleTask(t *testing.T) {
 			task: &task.Task{
 				ID:       uuid.New(),
 				Schedule: "0 */10 * * * *",
-				Command:  task.StringArray{},
+				Command:  "",
 				Status:   task.TaskStatusPending,
 			},
 			validateResult: func(t *testing.T, result *task.TaskExecutionResult) {
@@ -215,7 +215,7 @@ func TestTaskConsumer_HandleTask(t *testing.T) {
 			task: &task.Task{
 				ID:       uuid.New(),
 				Schedule: "0 */15 * * * *",
-				Command:  task.StringArray{"nonexistentcommand12345"},
+				Command:  "nonexistentcommand12345",
 				Status:   task.TaskStatusPending,
 			},
 			validateResult: func(t *testing.T, result *task.TaskExecutionResult) {
@@ -519,19 +519,19 @@ func TestTaskConsumer_MultipleTasksSequential(t *testing.T) {
 		{
 			ID:       uuid.New(),
 			Schedule: "0 */5 * * * *",
-			Command:  task.StringArray{"echo", "task1"},
+			Command:  "echo task1",
 			Status:   task.TaskStatusPending,
 		},
 		{
 			ID:       uuid.New(),
 			Schedule: "0 */10 * * * *",
-			Command:  task.StringArray{"echo", "task2"},
+			Command:  "echo task2",
 			Status:   task.TaskStatusPending,
 		},
 		{
 			ID:       uuid.New(),
 			Schedule: "0 */15 * * * *",
-			Command:  task.StringArray{"echo", "task3"},
+			Command:  "echo task3",
 			Status:   task.TaskStatusPending,
 		},
 	}

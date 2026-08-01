@@ -180,7 +180,7 @@ func TestFullDatabaseWorkflow(t *testing.T) {
 		// Use database - create a test taskObj
 		taskObj := &task.Task{
 			Schedule: "*/5 * * * *",
-			Command:  task.StringArray{"echo", "test"},
+			Command:  "echo test",
 			Status:   task.TaskStatusCreated,
 		}
 		err = db.Create(taskObj).Error

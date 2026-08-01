@@ -1,11 +1,9 @@
 package task
 
 import (
-	"database/sql/driver"
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -35,7 +33,7 @@ func TestTask_BeforeCreate(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			originalID := tt.task.ID
-			err := tt.task.BeforeCreate()
+			err := tt.task.BeforeCreate(nil)
 			assert.NoError(t, err)
 
 			if originalID == uuid.Nil {
@@ -171,140 +169,6 @@ func TestTask_UpdateStatus(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 				assert.Equal(t, tt.newStatus, task.Status, "status should be updated")
-			}
-		})
-	}
-}
-
-func TestStringArray_Scan(t *testing.T) {
-	tests := []struct {
-		name    string
-		value   interface{}
-		want    StringArray
-		wantErr bool
-	}{
-		{
-			name:  "scan nil value",
-			value: nil,
-			want:  nil,
-		},
-		{
-			name:  "scan byte slice with PostgreSQL format",
-			value: []byte("{echo,test,command}"),
-			want:  StringArray{"echo", "test", "command"},
-		},
-		{
-			name:  "scan string with PostgreSQL format",
-			value: "{echo,test}",
-			want:  StringArray{"echo", "test"},
-		},
-		{
-			name:  "scan empty array",
-			value: "{}",
-			want:  StringArray{},
-		},
-		{
-			name:  "scan empty string",
-			value: "",
-			want:  StringArray{},
-		},
-		{
-			name:  "scan pq.StringArray",
-			value: pq.StringArray{"ls", "-la"},
-			want:  StringArray{"ls", "-la"},
-		},
-		{
-			name:    "scan unsupported type",
-			value:   123,
-			wantErr: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			var s StringArray
-			err := s.Scan(tt.value)
-
-			if tt.wantErr {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-				assert.Equal(t, tt.want, s)
-			}
-		})
-	}
-}
-
-func TestStringArray_scanString(t *testing.T) {
-	tests := []struct {
-		name  string
-		input string
-		want  StringArray
-	}{
-		{
-			name:  "scan normal PostgreSQL array",
-			input: "{echo,test,command}",
-			want:  StringArray{"echo", "test", "command"},
-		},
-		{
-			name:  "scan empty braces",
-			input: "{}",
-			want:  StringArray{},
-		},
-		{
-			name:  "scan empty string",
-			input: "",
-			want:  StringArray{},
-		},
-		{
-			name:  "scan single element",
-			input: "{echo}",
-			want:  StringArray{"echo"},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			var s StringArray
-			err := s.scanString(tt.input)
-			assert.NoError(t, err)
-			assert.Equal(t, tt.want, s)
-		})
-	}
-}
-
-func TestStringArray_Value(t *testing.T) {
-	tests := []struct {
-		name    string
-		array   StringArray
-		wantNil bool
-	}{
-		{
-			name:    "nil array returns nil",
-			array:   nil,
-			wantNil: true,
-		},
-		{
-			name:  "empty array",
-			array: StringArray{},
-		},
-		{
-			name:  "array with values",
-			array: StringArray{"echo", "test"},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			value, err := tt.array.Value()
-			assert.NoError(t, err)
-
-			if tt.wantNil {
-				assert.Nil(t, value)
-			} else {
-				assert.NotNil(t, value)
-				// Verify it's a valid driver.Value type
-				var _ driver.Value = value
 			}
 		})
 	}

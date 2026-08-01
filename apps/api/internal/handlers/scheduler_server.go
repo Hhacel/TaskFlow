@@ -3,6 +3,7 @@ package handlers
 import (
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/hhace/taskflow/apps/api/config"
@@ -41,7 +42,7 @@ func (s *SchedulerServer) CreateTask(c *gin.Context) {
 	// Create new task
 	task := &task.Task{
 		Schedule: req.Schedule,
-		Command:  task.StringArray(req.Command),
+		Command:  strings.Join(req.Command, " "),
 		Status:   task.TaskStatusPending,
 	}
 
@@ -114,10 +115,16 @@ func (s *SchedulerServer) GetTasks(c *gin.Context, params api.GetTasksParams) {
 // Helper functions
 
 func (s *SchedulerServer) taskToResponse(task *task.Task) api.TaskResponse {
+	// Split stored command string into arguments for API response
+	var cmdArgs []string
+	if task.Command != "" {
+		cmdArgs = strings.Fields(task.Command)
+	}
+
 	return api.TaskResponse{
 		Id:        &task.ID,
 		Schedule:  &task.Schedule,
-		Command:   tfutil.ToPtr([]string(task.Command)),
+		Command:   tfutil.ToPtr(cmdArgs),
 		Status:    tfutil.ToPtr(s.modelStatusToAPIStatus(task.Status)),
 		CreatedAt: &task.CreatedAt,
 		UpdatedAt: &task.UpdatedAt,

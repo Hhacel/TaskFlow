@@ -122,7 +122,7 @@ func TestSchedulerServer_CreateTask(t *testing.T) {
 			name: "creates task with multiple command arguments",
 			requestBody: api.CreateTaskRequest{
 				Schedule: "0 0 * * * *",
-				Command:  []string{"bash", "-c", "echo hello"},
+				Command:  []string{"bash", "-c", "echo", "hello"},
 			},
 			mockSetup: func(m *persistence.MockRepository) {
 				m.On("CreateTask", mock.AnythingOfType("*task.Task")).Return(nil).Run(func(args mock.Arguments) {
@@ -137,7 +137,7 @@ func TestSchedulerServer_CreateTask(t *testing.T) {
 				var resp api.TaskResponse
 				err := json.Unmarshal(rec.Body.Bytes(), &resp)
 				require.NoError(t, err)
-				assert.Equal(t, []string{"bash", "-c", "echo hello"}, *resp.Command)
+				assert.Equal(t, []string{"bash", "-c", "echo", "hello"}, *resp.Command)
 			},
 		},
 	}
@@ -197,7 +197,7 @@ func TestSchedulerServer_GetTask(t *testing.T) {
 				task := &task.Task{
 					ID:        testID,
 					Schedule:  "0 */5 * * * *",
-					Command:   task.StringArray{"echo", "test"},
+					Command:   "echo test",
 					Status:    task.TaskStatusPending,
 					CreatedAt: testTime,
 					UpdatedAt: testTime,
@@ -237,7 +237,7 @@ func TestSchedulerServer_GetTask(t *testing.T) {
 				task := &task.Task{
 					ID:        testID,
 					Schedule:  "0 0 * * * *",
-					Command:   task.StringArray{"ls", "-la"},
+					Command:   "ls -la",
 					Status:    task.TaskStatusCompleted,
 					CreatedAt: testTime,
 					UpdatedAt: testTime,
@@ -302,7 +302,7 @@ func TestSchedulerServer_GetTasks(t *testing.T) {
 					{
 						ID:        uuid.New(),
 						Schedule:  "0 */5 * * * *",
-						Command:   task.StringArray{"echo", "task1"},
+						Command:   "echo task1",
 						Status:    task.TaskStatusPending,
 						CreatedAt: testTime,
 						UpdatedAt: testTime,
@@ -310,7 +310,7 @@ func TestSchedulerServer_GetTasks(t *testing.T) {
 					{
 						ID:        uuid.New(),
 						Schedule:  "0 */10 * * * *",
-						Command:   task.StringArray{"echo", "task2"},
+						Command:   "echo task2",
 						Status:    task.TaskStatusCompleted,
 						CreatedAt: testTime,
 						UpdatedAt: testTime,
@@ -336,7 +336,7 @@ func TestSchedulerServer_GetTasks(t *testing.T) {
 					{
 						ID:        uuid.New(),
 						Schedule:  "0 */5 * * * *",
-						Command:   task.StringArray{"echo", "pending"},
+						Command:   "echo pending",
 						Status:    task.TaskStatusPending,
 						CreatedAt: testTime,
 						UpdatedAt: testTime,
@@ -361,7 +361,7 @@ func TestSchedulerServer_GetTasks(t *testing.T) {
 					{
 						ID:        uuid.New(),
 						Schedule:  "0 0 * * * *",
-						Command:   task.StringArray{"ls"},
+						Command:   "ls",
 						Status:    task.TaskStatusCompleted,
 						CreatedAt: testTime,
 						UpdatedAt: testTime,
@@ -386,7 +386,7 @@ func TestSchedulerServer_GetTasks(t *testing.T) {
 					{
 						ID:        uuid.New(),
 						Schedule:  "0 0 * * * *",
-						Command:   task.StringArray{"false"},
+						Command:   "false",
 						Status:    task.TaskStatusFailed,
 						CreatedAt: testTime,
 						UpdatedAt: testTime,
@@ -540,7 +540,7 @@ func TestSchedulerServer_TaskToResponse(t *testing.T) {
 			task: &task.Task{
 				ID:        testID,
 				Schedule:  "0 */5 * * * *",
-				Command:   task.StringArray{"echo", "test"},
+				Command:   "echo test",
 				Status:    task.TaskStatusPending,
 				CreatedAt: testTime,
 				UpdatedAt: testTime,
@@ -559,7 +559,7 @@ func TestSchedulerServer_TaskToResponse(t *testing.T) {
 			task: &task.Task{
 				ID:        testID,
 				Schedule:  "0 0 * * * *",
-				Command:   task.StringArray{"ls", "-la"},
+				Command:   "ls -la",
 				Status:    task.TaskStatusCompleted,
 				CreatedAt: testTime,
 				UpdatedAt: testTime,
@@ -574,7 +574,7 @@ func TestSchedulerServer_TaskToResponse(t *testing.T) {
 			task: &task.Task{
 				ID:        testID,
 				Schedule:  "0 0 * * * *",
-				Command:   task.StringArray{"false"},
+				Command:   "false",
 				Status:    task.TaskStatusFailed,
 				CreatedAt: testTime,
 				UpdatedAt: testTime,

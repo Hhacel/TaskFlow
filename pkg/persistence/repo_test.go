@@ -87,7 +87,7 @@ func TestRepository_CreateTask(t *testing.T) {
 
 	task := &task.Task{
 		Schedule: "*/5 * * * *",
-		Command:  task.StringArray{"echo", "test"},
+		Command:  "echo test",
 		Status:   task.TaskStatusCreated,
 	}
 
@@ -112,7 +112,7 @@ func TestRepository_GetTaskByID(t *testing.T) {
 			setup: func() uuid.UUID {
 				task := &task.Task{
 					Schedule: "*/5 * * * *",
-					Command:  task.StringArray{"echo", "test"},
+					Command:  "echo test",
 					Status:   task.TaskStatusCreated,
 				}
 				repo.CreateTask(task)
@@ -154,7 +154,7 @@ func TestRepository_GetAllTasks(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		task := &task.Task{
 			Schedule: "*/5 * * * *",
-			Command:  task.StringArray{"echo", "test"},
+			Command:  "echo test",
 			Status:   task.TaskStatusCreated,
 		}
 		repo.CreateTask(task)
@@ -197,7 +197,7 @@ func TestRepository_GetTasksByStatus(t *testing.T) {
 		for i := 0; i < 2; i++ {
 			task := &task.Task{
 				Schedule: "*/5 * * * *",
-				Command:  task.StringArray{"echo", "test"},
+				Command:  "echo test",
 				Status:   status,
 			}
 			repo.CreateTask(task)
@@ -235,7 +235,7 @@ func TestRepository_UpdateTask(t *testing.T) {
 
 	taskModel := &task.Task{
 		Schedule: "*/5 * * * *",
-		Command:  task.StringArray{"echo", "test"},
+		Command:  "echo test",
 		Status:   task.TaskStatusCreated,
 	}
 	repo.CreateTask(taskModel)
@@ -269,7 +269,7 @@ func TestRepository_UpdateTaskStatus(t *testing.T) {
 			setup: func() uuid.UUID {
 				task := &task.Task{
 					Schedule: "*/5 * * * *",
-					Command:  task.StringArray{"echo", "test"},
+					Command:  "echo test",
 					Status:   task.TaskStatusCreated,
 				}
 				repo.CreateTask(task)
@@ -318,7 +318,7 @@ func TestRepository_DeleteTask(t *testing.T) {
 			setup: func() uuid.UUID {
 				task := &task.Task{
 					Schedule: "*/5 * * * *",
-					Command:  task.StringArray{"echo", "test"},
+					Command:  "echo test",
 					Status:   task.TaskStatusCreated,
 				}
 				repo.CreateTask(task)
@@ -359,7 +359,7 @@ func TestRepository_CountTasks(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		task := &task.Task{
 			Schedule: "*/5 * * * *",
-			Command:  task.StringArray{"echo", "test"},
+			Command:  "echo test",
 			Status:   task.TaskStatusCreated,
 		}
 		repo.CreateTask(task)
@@ -378,14 +378,14 @@ func TestRepository_CountTasksByStatus(t *testing.T) {
 	for i := 0; i < 2; i++ {
 		repo.CreateTask(&task.Task{
 			Schedule: "*/5 * * * *",
-			Command:  task.StringArray{"echo", "test"},
+			Command:  "echo test",
 			Status:   task.TaskStatusCreated,
 		})
 	}
 	for i := 0; i < 3; i++ {
 		repo.CreateTask(&task.Task{
 			Schedule: "*/5 * * * *",
-			Command:  task.StringArray{"echo", "test"},
+			Command:  "echo test",
 			Status:   task.TaskStatusPending,
 		})
 	}
@@ -409,7 +409,7 @@ func TestRepository_GetTasksCreatedAfter(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		repo.CreateTask(&task.Task{
 			Schedule: "*/5 * * * *",
-			Command:  task.StringArray{"echo", "test"},
+			Command:  "echo test",
 			Status:   task.TaskStatusCreated,
 		})
 	}
@@ -425,7 +425,7 @@ func TestRepository_GetTasksUpdatedAfter(t *testing.T) {
 
 	taskObj := &task.Task{
 		Schedule: "*/5 * * * *",
-		Command:  task.StringArray{"echo", "test"},
+		Command:  "echo test",
 		Status:   task.TaskStatusCreated,
 	}
 	repo.CreateTask(taskObj)
@@ -447,12 +447,12 @@ func TestRepository_GetCreatedTasks(t *testing.T) {
 
 	repo.CreateTask(&task.Task{
 		Schedule: "*/5 * * * *",
-		Command:  task.StringArray{"echo", "test"},
+		Command:  "echo test",
 		Status:   task.TaskStatusCreated,
 	})
 	repo.CreateTask(&task.Task{
 		Schedule: "*/5 * * * *",
-		Command:  task.StringArray{"echo", "test"},
+		Command:  "echo test",
 		Status:   task.TaskStatusPending,
 	})
 
@@ -468,12 +468,12 @@ func TestRepository_GetPendingTasks(t *testing.T) {
 
 	repo.CreateTask(&task.Task{
 		Schedule: "*/5 * * * *",
-		Command:  task.StringArray{"echo", "test"},
+		Command:  "echo test",
 		Status:   task.TaskStatusCreated,
 	})
 	repo.CreateTask(&task.Task{
 		Schedule: "*/5 * * * *",
-		Command:  task.StringArray{"echo", "test"},
+		Command:  "echo test",
 		Status:   task.TaskStatusPending,
 	})
 
@@ -950,7 +950,7 @@ func TestRepository_Transaction(t *testing.T) {
 		err := repo.Transaction(func(txRepo RepositoryInterface) error {
 			task := &task.Task{
 				Schedule: "*/5 * * * *",
-				Command:  task.StringArray{"echo", "test"},
+				Command:  "echo test",
 				Status:   task.TaskStatusCreated,
 			}
 			return txRepo.CreateTask(task)
@@ -967,7 +967,7 @@ func TestRepository_Transaction(t *testing.T) {
 		err := repo.Transaction(func(txRepo RepositoryInterface) error {
 			task := &task.Task{
 				Schedule: "*/5 * * * *",
-				Command:  task.StringArray{"echo", "test"},
+				Command:  "echo test",
 				Status:   task.TaskStatusCreated,
 			}
 			if err := txRepo.CreateTask(task); err != nil {

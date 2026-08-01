@@ -90,7 +90,7 @@ func TestTaskExecutor_Execute(t *testing.T) {
 			timeout: 5 * time.Second,
 			task: &task.Task{
 				ID:      uuid.New(),
-				Command: task.StringArray{},
+				Command: "",
 			},
 			validateResult: func(t *testing.T, result *task.TaskExecutionResult) {
 				assert.False(t, result.Success)
@@ -105,7 +105,7 @@ func TestTaskExecutor_Execute(t *testing.T) {
 			timeout: 5 * time.Second,
 			task: &task.Task{
 				ID:      uuid.New(),
-				Command: task.StringArray{"nonexistentcommand12345"},
+				Command: "nonexistentcommand12345",
 			},
 			validateResult: func(t *testing.T, result *task.TaskExecutionResult) {
 				assert.False(t, result.Success)
@@ -210,51 +210,51 @@ func TestTaskExecutor_Execute(t *testing.T) {
 }
 
 // getOSSpecificCommand returns platform-specific commands for testing
-func getOSSpecificCommand(commandType string) task.StringArray {
+func getOSSpecificCommand(commandType string) string {
 	if runtime.GOOS == "windows" {
 		switch commandType {
 		case "echo":
-			return task.StringArray{"cmd", "/C", "echo", "hello"}
+			return "cmd /C echo hello"
 		case "single":
-			return task.StringArray{"cmd", "/C", "echo", "test"}
+			return "cmd /C echo test"
 		case "exit_error":
-			return task.StringArray{"cmd", "/C", "exit", "1"}
+			return "cmd /C exit 1"
 		case "sleep":
 			// Sleep for 2 seconds on Windows
-			return task.StringArray{"powershell", "-Command", "Start-Sleep -Seconds 2"}
+			return "powershell -Command Start-Sleep -Seconds 2"
 		case "output":
-			return task.StringArray{"cmd", "/C", "echo", "test output"}
+			return "cmd /C echo test output"
 		case "id_test":
-			return task.StringArray{"cmd", "/C", "echo", "id test"}
+			return "cmd /C echo id test"
 		case "multi_args":
-			return task.StringArray{"cmd", "/C", "echo", "arg1 arg2 arg3"}
+			return "cmd /C echo arg1 arg2 arg3"
 		case "timing":
-			return task.StringArray{"cmd", "/C", "echo", "timing test"}
+			return "cmd /C echo timing test"
 		default:
-			return task.StringArray{"cmd", "/C", "echo", "default"}
+			return "cmd /C echo default"
 		}
 	} else {
 		// Unix-like systems (Linux, macOS)
 		switch commandType {
 		case "echo":
-			return task.StringArray{"echo", "hello"}
+			return "echo hello"
 		case "single":
-			return task.StringArray{"echo", "test"}
+			return "echo test"
 		case "exit_error":
-			return task.StringArray{"sh", "-c", "exit 1"}
+			return "sh -c 'exit 1'"
 		case "sleep":
 			// Sleep for 2 seconds on Unix
-			return task.StringArray{"sleep", "2"}
+			return "sleep 2"
 		case "output":
-			return task.StringArray{"echo", "test output"}
+			return "echo test output"
 		case "id_test":
-			return task.StringArray{"echo", "id test"}
+			return "echo id test"
 		case "multi_args":
-			return task.StringArray{"echo", "arg1", "arg2", "arg3"}
+			return "echo arg1 arg2 arg3"
 		case "timing":
-			return task.StringArray{"echo", "timing test"}
+			return "echo timing test"
 		default:
-			return task.StringArray{"echo", "default"}
+			return "echo default"
 		}
 	}
 }

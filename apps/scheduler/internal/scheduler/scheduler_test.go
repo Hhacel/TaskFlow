@@ -71,7 +71,7 @@ func TestTaskScheduler_AddTask(t *testing.T) {
 			task: &task.Task{
 				ID:       uuid.New(),
 				Schedule: "0 */5 * * * *", // Every 5 minutes
-				Command:  task.StringArray{"echo", "test"},
+				Command:  "echo test",
 				Status:   task.TaskStatusCreated,
 			},
 			existingJobs: map[uuid.UUID]bool{},
@@ -82,7 +82,7 @@ func TestTaskScheduler_AddTask(t *testing.T) {
 			task: &task.Task{
 				ID:       uuid.New(),
 				Schedule: "0 0 * * * *", // Every hour
-				Command:  task.StringArray{"echo", "existing"},
+				Command:  "echo existing",
 				Status:   task.TaskStatusCreated,
 			},
 			existingJobs: map[uuid.UUID]bool{},
@@ -93,7 +93,7 @@ func TestTaskScheduler_AddTask(t *testing.T) {
 			task: &task.Task{
 				ID:       uuid.New(),
 				Schedule: "invalid cron",
-				Command:  task.StringArray{"echo", "test"},
+				Command:  "echo test",
 				Status:   task.TaskStatusCreated,
 			},
 			existingJobs:   map[uuid.UUID]bool{},
@@ -105,7 +105,7 @@ func TestTaskScheduler_AddTask(t *testing.T) {
 			task: &task.Task{
 				ID:       uuid.New(),
 				Schedule: "*/30 * * * * *", // Every 30 seconds
-				Command:  task.StringArray{"echo", "seconds"},
+				Command:  "echo seconds",
 				Status:   task.TaskStatusCreated,
 			},
 			existingJobs: map[uuid.UUID]bool{},
@@ -189,7 +189,7 @@ func TestTaskScheduler_RemoveTask(t *testing.T) {
 				task := &task.Task{
 					ID:       tt.taskID,
 					Schedule: "0 */5 * * * *",
-					Command:  task.StringArray{"echo", "test"},
+					Command:  "echo test",
 				}
 				err := scheduler.AddTask(task)
 				require.NoError(t, err)
@@ -244,13 +244,13 @@ func TestTaskScheduler_LoadTasks(t *testing.T) {
 					{
 						ID:       taskID1,
 						Schedule: "0 */5 * * * *",
-						Command:  task.StringArray{"echo", "1"},
+						Command:  "echo 1",
 						Status:   task.TaskStatusCreated,
 					},
 					{
 						ID:       taskID2,
 						Schedule: "0 0 * * * *",
-						Command:  task.StringArray{"echo", "2"},
+						Command:  "echo 2",
 						Status:   task.TaskStatusCreated,
 					},
 				}
@@ -267,7 +267,7 @@ func TestTaskScheduler_LoadTasks(t *testing.T) {
 					{
 						ID:       taskID1,
 						Schedule: "0 */5 * * * *",
-						Command:  task.StringArray{"echo", "1"},
+						Command:  "echo 1",
 						Status:   task.TaskStatusCreated,
 					},
 				}
@@ -296,13 +296,13 @@ func TestTaskScheduler_LoadTasks(t *testing.T) {
 					{
 						ID:       taskID1,
 						Schedule: "0 */5 * * * *",
-						Command:  task.StringArray{"echo", "valid"},
+						Command:  "echo valid",
 						Status:   task.TaskStatusCreated,
 					},
 					{
 						ID:       taskID3,
 						Schedule: "invalid cron",
-						Command:  task.StringArray{"echo", "invalid"},
+						Command:  "echo invalid",
 						Status:   task.TaskStatusCreated,
 					},
 				}
@@ -327,7 +327,7 @@ func TestTaskScheduler_LoadTasks(t *testing.T) {
 				task := &task.Task{
 					ID:       taskID,
 					Schedule: "0 */5 * * * *",
-					Command:  task.StringArray{"echo", "test"},
+					Command:  "echo test",
 				}
 				_ = scheduler.AddTask(task)
 			}
@@ -370,7 +370,7 @@ func TestTaskScheduler_Start(t *testing.T) {
 					{
 						ID:       uuid.New(),
 						Schedule: "0 */5 * * * *",
-						Command:  task.StringArray{"echo", "test"},
+						Command:  "echo test",
 						Status:   task.TaskStatusCreated,
 					},
 				}
@@ -492,7 +492,7 @@ func TestTaskScheduler_ExecuteTask(t *testing.T) {
 			task: &task.Task{
 				ID:       taskID,
 				Schedule: "0 */5 * * * *",
-				Command:  task.StringArray{"echo", "test"},
+				Command:  "echo test",
 				Status:   task.TaskStatusCreated,
 			},
 			mockSetup: func(m *persistence.MockRepository) {
@@ -522,7 +522,7 @@ func TestTaskScheduler_ExecuteTask(t *testing.T) {
 			task: &task.Task{
 				ID:       taskID,
 				Schedule: "0 */5 * * * *",
-				Command:  task.StringArray{"echo", "test"},
+				Command:  "echo test",
 				Status:   task.TaskStatusCreated,
 			},
 			mockSetup: func(m *persistence.MockRepository) {
