@@ -98,7 +98,7 @@ func TestResultConsumer_HandleResult(t *testing.T) {
 				Error:     "",
 				StartTime: now,
 				EndTime:   now.Add(5 * time.Second),
-				Duration:  "5s",
+				Duration:  5,
 			},
 			mockSetup: func(m *persistence.MockRepository) {
 				m.On("UpdateTaskStatus", taskID, task.TaskStatusCompleted).Return(nil).Once()
@@ -116,7 +116,7 @@ func TestResultConsumer_HandleResult(t *testing.T) {
 				Error:     "command not found",
 				StartTime: now,
 				EndTime:   now.Add(1 * time.Second),
-				Duration:  "1s",
+				Duration:  1,
 			},
 			mockSetup: func(m *persistence.MockRepository) {
 				m.On("UpdateTaskStatus", taskID, task.TaskStatusFailed).Return(nil).Once()
@@ -134,7 +134,7 @@ func TestResultConsumer_HandleResult(t *testing.T) {
 				Error:     "",
 				StartTime: now,
 				EndTime:   now.Add(2 * time.Second),
-				Duration:  "2s",
+				Duration:  2,
 			},
 			mockSetup: func(m *persistence.MockRepository) {
 				m.On("UpdateTaskStatus", taskID, task.TaskStatusFailed).Return(nil).Once()
@@ -152,7 +152,7 @@ func TestResultConsumer_HandleResult(t *testing.T) {
 				Error:     "",
 				StartTime: now,
 				EndTime:   now.Add(3 * time.Second),
-				Duration:  "3s",
+				Duration:  3,
 			},
 			mockSetup: func(m *persistence.MockRepository) {
 				m.On("UpdateTaskStatus", taskID, task.TaskStatusCompleted).Return(assert.AnError).Once()
@@ -170,7 +170,7 @@ func TestResultConsumer_HandleResult(t *testing.T) {
 				Error:     "execution error",
 				StartTime: now,
 				EndTime:   now.Add(1 * time.Second),
-				Duration:  "1s",
+				Duration:  1,
 			},
 			mockSetup: func(m *persistence.MockRepository) {
 				m.On("UpdateTaskStatus", taskID, task.TaskStatusFailed).Return(assert.AnError).Once()
@@ -188,7 +188,7 @@ func TestResultConsumer_HandleResult(t *testing.T) {
 				Error:     "",
 				StartTime: now,
 				EndTime:   now.Add(4 * time.Second),
-				Duration:  "4s",
+				Duration:  4,
 			},
 			mockSetup: func(m *persistence.MockRepository) {
 				m.On("UpdateTaskStatus", taskID, task.TaskStatusCompleted).Return(nil).Once()
