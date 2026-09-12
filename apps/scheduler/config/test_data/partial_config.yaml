@@ -1,4 +1,0 @@
-server:
-  port: "7070"
-nats:
-  url: "nats://partial-nats:4222"

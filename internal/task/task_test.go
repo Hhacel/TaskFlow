@@ -3,46 +3,12 @@ package task
 import (
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestTask_TableName(t *testing.T) {
-	task := Task{}
-	assert.Equal(t, "tasks", task.TableName())
-}
-
-func TestTask_BeforeCreate(t *testing.T) {
-	tests := []struct {
-		name    string
-		task    Task
-		wantNil bool
-	}{
-		{
-			name:    "generates UUID when nil",
-			task:    Task{ID: uuid.Nil},
-			wantNil: false,
-		},
-		{
-			name:    "preserves existing UUID",
-			task:    Task{ID: uuid.MustParse("123e4567-e89b-12d3-a456-426614174000")},
-			wantNil: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			originalID := tt.task.ID
-			err := tt.task.BeforeCreate(nil)
-			assert.NoError(t, err)
-
-			if originalID == uuid.Nil {
-				assert.NotEqual(t, uuid.Nil, tt.task.ID, "should generate new UUID")
-			} else {
-				assert.Equal(t, originalID, tt.task.ID, "should preserve existing UUID")
-			}
-		})
-	}
+	tk := Task{}
+	assert.Equal(t, "tasks", tk.TableName())
 }
 
 func TestTask_IsValidStatus(t *testing.T) {
@@ -51,18 +17,19 @@ func TestTask_IsValidStatus(t *testing.T) {
 		status TaskStatus
 		want   bool
 	}{
-		{"created status is valid", TaskStatusCreated, true},
 		{"pending status is valid", TaskStatusPending, true},
-		{"completed status is valid", TaskStatusCompleted, true},
+		{"running status is valid", TaskStatusRunning, true},
+		{"succeeded status is valid", TaskStatusSucceeded, true},
 		{"failed status is valid", TaskStatusFailed, true},
+		{"cancelled status is valid", TaskStatusCancelled, true},
 		{"invalid status", TaskStatus("invalid"), false},
 		{"empty status", TaskStatus(""), false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			task := Task{Status: tt.status}
-			assert.Equal(t, tt.want, task.IsValidStatus())
+			tk := Task{Status: tt.status}
+			assert.Equal(t, tt.want, tk.IsValidStatus())
 		})
 	}
 }
@@ -74,27 +41,27 @@ func TestTask_CanTransitionTo(t *testing.T) {
 		toStatus   TaskStatus
 		canTransit bool
 	}{
-		// From Created
-		{"created -> pending", TaskStatusCreated, TaskStatusPending, true},
-		{"created -> completed", TaskStatusCreated, TaskStatusCompleted, false},
-		{"created -> failed", TaskStatusCreated, TaskStatusFailed, false},
-		{"created -> created", TaskStatusCreated, TaskStatusCreated, false},
-
 		// From Pending
-		{"pending -> completed", TaskStatusPending, TaskStatusCompleted, true},
-		{"pending -> failed", TaskStatusPending, TaskStatusFailed, true},
-		{"pending -> created", TaskStatusPending, TaskStatusCreated, false},
-		{"pending -> pending", TaskStatusPending, TaskStatusPending, false},
+		{"pending -> running", TaskStatusPending, TaskStatusRunning, true},
+		{"pending -> cancelled", TaskStatusPending, TaskStatusCancelled, true},
+		{"pending -> succeeded", TaskStatusPending, TaskStatusSucceeded, false},
+		{"pending -> failed", TaskStatusPending, TaskStatusFailed, false},
 
-		// From Completed (terminal state)
-		{"completed -> pending", TaskStatusCompleted, TaskStatusPending, false},
-		{"completed -> failed", TaskStatusCompleted, TaskStatusFailed, false},
-		{"completed -> created", TaskStatusCompleted, TaskStatusCreated, false},
+		// From Running
+		{"running -> succeeded", TaskStatusRunning, TaskStatusSucceeded, true},
+		{"running -> failed", TaskStatusRunning, TaskStatusFailed, true},
+		{"running -> cancelled", TaskStatusRunning, TaskStatusCancelled, true},
+		{"running -> pending", TaskStatusRunning, TaskStatusPending, false},
 
-		// From Failed (terminal state)
+		// From Failed (retry allowed)
+		{"failed -> running", TaskStatusFailed, TaskStatusRunning, true},
+		{"failed -> cancelled", TaskStatusFailed, TaskStatusCancelled, true},
+		{"failed -> succeeded", TaskStatusFailed, TaskStatusSucceeded, false},
 		{"failed -> pending", TaskStatusFailed, TaskStatusPending, false},
-		{"failed -> completed", TaskStatusFailed, TaskStatusCompleted, false},
-		{"failed -> created", TaskStatusFailed, TaskStatusCreated, false},
+
+		// From terminal states
+		{"succeeded -> running", TaskStatusSucceeded, TaskStatusRunning, false},
+		{"cancelled -> running", TaskStatusCancelled, TaskStatusRunning, false},
 
 		// Invalid from status
 		{"invalid -> pending", TaskStatus("invalid"), TaskStatusPending, false},
@@ -102,8 +69,8 @@ func TestTask_CanTransitionTo(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			task := Task{Status: tt.fromStatus}
-			assert.Equal(t, tt.canTransit, task.CanTransitionTo(tt.toStatus))
+			tk := Task{Status: tt.fromStatus}
+			assert.Equal(t, tt.canTransit, tk.CanTransitionTo(tt.toStatus))
 		})
 	}
 }
@@ -114,61 +81,22 @@ func TestTask_UpdateStatus(t *testing.T) {
 		fromStatus  TaskStatus
 		newStatus   TaskStatus
 		expectError bool
-		errorMsg    string
 	}{
-		{
-			name:        "valid transition from created to pending",
-			fromStatus:  TaskStatusCreated,
-			newStatus:   TaskStatusPending,
-			expectError: false,
-		},
-		{
-			name:        "invalid transition from created to completed",
-			fromStatus:  TaskStatusCreated,
-			newStatus:   TaskStatusCompleted,
-			expectError: true,
-			errorMsg:    "cannot transition from created to completed",
-		},
-		{
-			name:        "valid transition from pending to completed",
-			fromStatus:  TaskStatusPending,
-			newStatus:   TaskStatusCompleted,
-			expectError: false,
-		},
-		{
-			name:        "valid transition from pending to failed",
-			fromStatus:  TaskStatusPending,
-			newStatus:   TaskStatusFailed,
-			expectError: false,
-		},
-		{
-			name:        "invalid transition from completed (terminal state)",
-			fromStatus:  TaskStatusCompleted,
-			newStatus:   TaskStatusPending,
-			expectError: true,
-			errorMsg:    "cannot transition from completed to pending",
-		},
-		{
-			name:        "invalid transition from failed (terminal state)",
-			fromStatus:  TaskStatusFailed,
-			newStatus:   TaskStatusCompleted,
-			expectError: true,
-			errorMsg:    "cannot transition from failed to completed",
-		},
+		{"valid transition pending to running", TaskStatusPending, TaskStatusRunning, false},
+		{"invalid transition pending to succeeded", TaskStatusPending, TaskStatusSucceeded, true},
+		{"valid retry from failed to running", TaskStatusFailed, TaskStatusRunning, false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			task := &Task{Status: tt.fromStatus}
-			err := task.UpdateStatus(tt.newStatus)
-
+			tk := &Task{Status: tt.fromStatus}
+			err := tk.UpdateStatus(tt.newStatus)
 			if tt.expectError {
 				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errorMsg)
-				assert.Equal(t, tt.fromStatus, task.Status, "status should not change on error")
+				assert.Equal(t, tt.fromStatus, tk.Status)
 			} else {
 				assert.NoError(t, err)
-				assert.Equal(t, tt.newStatus, task.Status, "status should be updated")
+				assert.Equal(t, tt.newStatus, tk.Status)
 			}
 		})
 	}

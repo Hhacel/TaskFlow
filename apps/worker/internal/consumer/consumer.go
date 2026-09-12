@@ -1,118 +1,86 @@
+// Package consumer consumes task dispatch messages published by the
+// Orchestrator, executes them, and publishes the execution result back.
 package consumer
 
 import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"time"
 
 	"github.com/hhace/taskflow/apps/worker/config"
 	"github.com/hhace/taskflow/apps/worker/internal/executor"
 	"github.com/hhace/taskflow/internal/task"
-	"github.com/nats-io/nats.go"
+	"github.com/hhace/taskflow/pkg/messaging"
 )
 
-// TaskConsumer handles consuming tasks from NATS queue
+// TaskConsumer handles consuming dispatched tasks from the broker.
 type TaskConsumer struct {
-	config   *config.Config
-	natsConn *nats.Conn
+	cfg      *config.Config
+	broker   messaging.Broker
 	executor *executor.TaskExecutor
-	sub      *nats.Subscription
+	sub      messaging.Subscription
 }
 
-// NewTaskConsumer creates a new task consumer
-func NewTaskConsumer(cfg *config.Config) (*TaskConsumer, error) {
-	// Connect to NATS with reconnect options
-	opts := []nats.Option{
-		nats.ReconnectWait(time.Duration(cfg.NATS.ReconnectWait) * time.Second),
-		nats.MaxReconnects(cfg.NATS.MaxReconnects),
-		nats.DisconnectErrHandler(func(nc *nats.Conn, err error) {
-			if err != nil {
-				slog.Warn("NATS disconnected", "error", err)
-			}
-		}),
-		nats.ReconnectHandler(func(nc *nats.Conn) {
-			slog.Info("NATS reconnected", "url", nc.ConnectedUrl())
-		}),
-	}
-
-	nc, err := nats.Connect(cfg.NATS.URL, opts...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to NATS: %w", err)
-	}
-
-	slog.Info("Connected to NATS", "url", cfg.NATS.URL)
-
+// NewTaskConsumer creates a new task consumer bound to an already-connected broker.
+func NewTaskConsumer(cfg *config.Config, broker messaging.Broker) *TaskConsumer {
 	return &TaskConsumer{
-		config:   cfg,
-		natsConn: nc,
-		executor: executor.NewTaskExecutor(cfg.GetTaskTimeout()),
-	}, nil
+		cfg:      cfg,
+		broker:   broker,
+		executor: executor.NewTaskExecutor(cfg.DefaultTimeout()),
+	}
 }
 
-// Start begins consuming tasks from the queue
+// Start begins consuming dispatched tasks from the queue group.
 func (c *TaskConsumer) Start() error {
-	var err error
-	c.sub, err = c.natsConn.QueueSubscribe(
-		c.config.NATS.TaskScheduleSubject,
-		c.config.NATS.QueueGroupName,
-		c.handleTask,
-	)
+	sub, err := c.broker.QueueSubscribe(c.cfg.NATS.TaskDispatchSubject, c.cfg.NATS.QueueGroupName, c.handleTask)
 	if err != nil {
-		return fmt.Errorf("failed to subscribe to task queue: %w", err)
+		return fmt.Errorf("failed to subscribe to task dispatch subject: %w", err)
 	}
+	c.sub = sub
 
 	slog.Info("Worker started consuming tasks",
-		"subject", c.config.NATS.TaskScheduleSubject,
-		"queueGroup", c.config.NATS.QueueGroupName)
+		"subject", c.cfg.NATS.TaskDispatchSubject,
+		"queueGroup", c.cfg.NATS.QueueGroupName)
 
 	return nil
 }
 
-// handleTask processes a single task message
-func (c *TaskConsumer) handleTask(msg *nats.Msg) {
-	slog.Debug("Received task message", "subject", msg.Subject)
-
-	// Parse task from message
-	var task task.Task
-	if err := json.Unmarshal(msg.Data, &task); err != nil {
-		slog.Error("Failed to unmarshal task", "error", err)
+// handleTask processes a single dispatched task message.
+func (c *TaskConsumer) handleTask(data []byte) {
+	var msg task.DispatchMessage
+	if err := json.Unmarshal(data, &msg); err != nil {
+		slog.Error("Failed to unmarshal dispatch message", "error", err)
 		return
 	}
 
-	slog.Info("Processing task", "taskId", task.ID)
+	slog.Info("Processing task", "taskId", msg.TaskID, "attempt", msg.Attempt)
 
-	// Execute the task
-	result := c.executor.Execute(&task)
+	result := c.executor.Execute(&msg)
 
-	// Publish result to results queue
 	if err := c.publishResult(result); err != nil {
-		slog.Error("Failed to publish task result", "taskId", task.ID, "error", err)
+		slog.Error("Failed to publish task result", "taskId", msg.TaskID, "error", err)
 		return
 	}
 
-	slog.Info("Task completed and result published", "taskId", task.ID, "success", result.Success)
+	slog.Info("Task completed and result published", "taskId", msg.TaskID, "success", result.Success)
 }
 
-// publishResult sends the execution result to the results queue
-func (c *TaskConsumer) publishResult(result *task.TaskExecutionResult) error {
-	resultJSON, err := json.Marshal(result)
+// publishResult sends the execution result to the results subject.
+func (c *TaskConsumer) publishResult(result *task.ResultMessage) error {
+	data, err := json.Marshal(result)
 	if err != nil {
 		return fmt.Errorf("failed to marshal task result: %w", err)
 	}
 
-	if err := c.natsConn.Publish(c.config.NATS.TaskResultSubject, resultJSON); err != nil {
-		return fmt.Errorf("failed to publish result to NATS: %w", err)
+	if err := c.broker.Publish(c.cfg.NATS.TaskResultSubject, data); err != nil {
+		return fmt.Errorf("failed to publish result: %w", err)
 	}
 
-	slog.Debug("Task result published",
-		"taskId", result.TaskID,
-		"subject", c.config.NATS.TaskResultSubject)
-
+	slog.Debug("Task result published", "taskId", result.TaskID, "subject", c.cfg.NATS.TaskResultSubject)
 	return nil
 }
 
-// Stop gracefully shuts down the consumer
+// Stop gracefully shuts down the consumer.
 func (c *TaskConsumer) Stop() error {
 	slog.Info("Stopping task consumer")
 
@@ -122,10 +90,5 @@ func (c *TaskConsumer) Stop() error {
 		}
 	}
 
-	if c.natsConn != nil {
-		c.natsConn.Close()
-		slog.Info("NATS connection closed")
-	}
-
-	return nil
+	return c.broker.Close()
 }

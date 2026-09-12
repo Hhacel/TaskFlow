@@ -1,374 +1,181 @@
 package persistence
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/hhace/taskflow/internal/task"
+	"github.com/hhace/taskflow/internal/workflow"
 	"gorm.io/gorm"
 )
 
+// RepositoryInterface defines every persistence operation needed by the API
+// Gateway and the Orchestrator to manage Workflows, Tasks, their dependency
+// graph and their execution results.
 type RepositoryInterface interface {
-	// Task methods
-	CreateTask(task *task.Task) error
-	GetTaskByID(id uuid.UUID) (*task.Task, error)
-	GetAllTasks(limit, offset int) ([]task.Task, error)
-	GetTasksByStatus(status task.TaskStatus, limit, offset int) ([]task.Task, error)
-	UpdateTask(task *task.Task) error
-	UpdateTaskStatus(id uuid.UUID, status task.TaskStatus) error
-	DeleteTask(id uuid.UUID) error
-	CountTasks() (int64, error)
-	CountTasksByStatus(status task.TaskStatus) (int64, error)
-	GetTasksCreatedAfter(after time.Time) ([]task.Task, error)
-	GetTasksUpdatedAfter(after time.Time) ([]task.Task, error)
-	GetCreatedTasks() ([]task.Task, error)
-	GetPendingTasks() ([]task.Task, error)
+	// Workflow
+	CreateWorkflow(wf *workflow.Workflow) error
+	GetWorkflowByID(id uint) (*workflow.Workflow, error)
+	UpdateWorkflowStatus(id uint, status workflow.Status) error
 
-	// TaskExecutionResult methods
-	CreateTaskResult(result *task.TaskExecutionResult) error
-	GetTaskResultByID(id uuid.UUID) (*task.TaskExecutionResult, error)
-	GetTaskResultsByTaskID(taskID uuid.UUID, limit, offset int) ([]task.TaskExecutionResult, error)
-	GetAllTaskResults(limit, offset int) ([]task.TaskExecutionResult, error)
-	GetSuccessfulTaskResults(limit, offset int) ([]task.TaskExecutionResult, error)
-	GetFailedTaskResults(limit, offset int) ([]task.TaskExecutionResult, error)
-	GetLatestTaskResultByTaskID(taskID uuid.UUID) (*task.TaskExecutionResult, error)
-	DeleteTaskResult(id uuid.UUID) error
-	DeleteTaskResultsByTaskID(taskID uuid.UUID) error
-	CountTaskResults() (int64, error)
-	CountTaskResultsByTaskID(taskID uuid.UUID) (int64, error)
-	CountSuccessfulTaskResults() (int64, error)
-	CountFailedTaskResults() (int64, error)
-	GetTaskResultsExecutedAfter(after time.Time) ([]task.TaskExecutionResult, error)
-	GetTaskResultsCreatedAfter(after time.Time) ([]task.TaskExecutionResult, error)
+	// Task
+	CreateTask(t *task.Task) error
+	GetTaskByID(id uint) (*task.Task, error)
+	GetTasksByWorkflowID(workflowID uint) ([]task.Task, error)
+	UpdateTaskStatus(id uint, status task.TaskStatus) error
+	CancelTasksByWorkflowID(workflowID uint) error
 
-	// Transaction method
+	// TaskDependency
+	CreateTaskDependency(dep *task.TaskDependency) error
+	GetDependenciesForTask(taskID uint) ([]task.TaskDependency, error)
+	GetDependentsOfTask(taskID uint) ([]task.TaskDependency, error)
+
+	// TaskResult
+	CreateTaskResult(result *task.TaskResult) error
+	GetTaskResultsByTaskID(taskID uint) ([]task.TaskResult, error)
+	GetLatestTaskResultByTaskID(taskID uint) (*task.TaskResult, error)
+
+	// Transaction executes fn with a repository bound to a single DB transaction.
 	Transaction(fn func(RepositoryInterface) error) error
 }
 
+// Repository is the GORM/PostgreSQL implementation of RepositoryInterface.
 type Repository struct {
 	db *gorm.DB
 }
 
+// NewRepository creates a new Repository backed by db.
 func NewRepository(db *gorm.DB) *Repository {
-	return &Repository{
-		db: db,
-	}
+	return &Repository{db: db}
 }
 
-// Create creates a new task
-func (r *Repository) CreateTask(task *task.Task) error {
-	return r.db.Create(task).Error
+// --- Workflow -------------------------------------------------------------
+
+func (r *Repository) CreateWorkflow(wf *workflow.Workflow) error {
+	return r.db.Create(wf).Error
 }
 
-// GetByID retrieves a task by its ID
-func (r *Repository) GetTaskByID(id uuid.UUID) (*task.Task, error) {
-	var task task.Task
-	err := r.db.Where("id = ?", id).First(&task).Error
+func (r *Repository) GetWorkflowByID(id uint) (*workflow.Workflow, error) {
+	var wf workflow.Workflow
+	err := r.db.Where("id = ?", id).First(&wf).Error
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return nil, fmt.Errorf("task with id %s not found", id)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("workflow with id %d not found", id)
 		}
 		return nil, err
 	}
-	return &task, nil
+	return &wf, nil
 }
 
-// GetAll retrieves all tasks with optional filtering
-func (r *Repository) GetAllTasks(limit, offset int) ([]task.Task, error) {
+func (r *Repository) UpdateWorkflowStatus(id uint, status workflow.Status) error {
+	result := r.db.Model(&workflow.Workflow{}).Where("id = ?", id).Updates(map[string]interface{}{
+		"status":     status,
+		"updated_at": time.Now(),
+	})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("workflow with id %d not found", id)
+	}
+	return nil
+}
+
+// --- Task -------------------------------------------------------------
+
+func (r *Repository) CreateTask(t *task.Task) error {
+	return r.db.Create(t).Error
+}
+
+func (r *Repository) GetTaskByID(id uint) (*task.Task, error) {
+	var t task.Task
+	err := r.db.Where("id = ?", id).First(&t).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("task with id %d not found", id)
+		}
+		return nil, err
+	}
+	return &t, nil
+}
+
+func (r *Repository) GetTasksByWorkflowID(workflowID uint) ([]task.Task, error) {
 	var tasks []task.Task
-	query := r.db.Model(&task.Task{})
-
-	if limit > 0 {
-		query = query.Limit(limit)
-	}
-
-	if offset > 0 {
-		query = query.Offset(offset)
-	}
-
-	err := query.Order("created_at DESC").Find(&tasks).Error
+	err := r.db.Where("workflow_id = ?", workflowID).Order("id ASC").Find(&tasks).Error
 	return tasks, err
 }
 
-// GetByStatus retrieves tasks by status
-func (r *Repository) GetTasksByStatus(status task.TaskStatus, limit, offset int) ([]task.Task, error) {
-	var tasks []task.Task
-	query := r.db.Where("status = ?", status)
-
-	if limit > 0 {
-		query = query.Limit(limit)
-	}
-
-	if offset > 0 {
-		query = query.Offset(offset)
-	}
-
-	err := query.Order("created_at DESC").Find(&tasks).Error
-	return tasks, err
-}
-
-// Update updates a task
-func (r *Repository) UpdateTask(task *task.Task) error {
-	return r.db.Save(task).Error
-}
-
-// UpdateStatus updates only the status of a task
-func (r *Repository) UpdateTaskStatus(id uuid.UUID, status task.TaskStatus) error {
+func (r *Repository) UpdateTaskStatus(id uint, status task.TaskStatus) error {
 	result := r.db.Model(&task.Task{}).Where("id = ?", id).Updates(map[string]interface{}{
 		"status":     status,
 		"updated_at": time.Now(),
 	})
-
 	if result.Error != nil {
 		return result.Error
 	}
-
 	if result.RowsAffected == 0 {
-		return fmt.Errorf("task with id %s not found", id)
+		return fmt.Errorf("task with id %d not found", id)
 	}
-
 	return nil
 }
 
-// Delete deletes a task by ID
-func (r *Repository) DeleteTask(id uuid.UUID) error {
-	result := r.db.Delete(&task.Task{}, "id = ?", id)
-	if result.Error != nil {
-		return result.Error
-	}
-
-	if result.RowsAffected == 0 {
-		return fmt.Errorf("task with id %s not found", id)
-	}
-
-	return nil
+// CancelTasksByWorkflowID transitions every non-terminal task of a workflow to CANCELLED.
+func (r *Repository) CancelTasksByWorkflowID(workflowID uint) error {
+	return r.db.Model(&task.Task{}).
+		Where("workflow_id = ? AND status IN ?", workflowID, []task.TaskStatus{task.TaskStatusPending, task.TaskStatusRunning}).
+		Updates(map[string]interface{}{
+			"status":     task.TaskStatusCancelled,
+			"updated_at": time.Now(),
+		}).Error
 }
 
-// Count returns the total number of tasks
-func (r *Repository) CountTasks() (int64, error) {
-	var count int64
-	err := r.db.Model(&task.Task{}).Count(&count).Error
-	return count, err
+// --- TaskDependency -------------------------------------------------------------
+
+func (r *Repository) CreateTaskDependency(dep *task.TaskDependency) error {
+	return r.db.Create(dep).Error
 }
 
-// CountByStatus returns the number of tasks with a specific status
-func (r *Repository) CountTasksByStatus(status task.TaskStatus) (int64, error) {
-	var count int64
-	err := r.db.Model(&task.Task{}).Where("status = ?", status).Count(&count).Error
-	return count, err
+// GetDependenciesForTask returns the dependency rows describing what taskID depends on.
+func (r *Repository) GetDependenciesForTask(taskID uint) ([]task.TaskDependency, error) {
+	var deps []task.TaskDependency
+	err := r.db.Where("task_id = ?", taskID).Find(&deps).Error
+	return deps, err
 }
 
-// GetTasksCreatedAfter retrieves tasks created after a specific time
-func (r *Repository) GetTasksCreatedAfter(after time.Time) ([]task.Task, error) {
-	var tasks []task.Task
-	err := r.db.Where("created_at > ?", after).Order("created_at DESC").Find(&tasks).Error
-	return tasks, err
+// GetDependentsOfTask returns the dependency rows describing what depends on taskID.
+func (r *Repository) GetDependentsOfTask(taskID uint) ([]task.TaskDependency, error) {
+	var deps []task.TaskDependency
+	err := r.db.Where("depends_on_task_id = ?", taskID).Find(&deps).Error
+	return deps, err
 }
 
-// GetTasksUpdatedAfter retrieves tasks updated after a specific time
-func (r *Repository) GetTasksUpdatedAfter(after time.Time) ([]task.Task, error) {
-	var tasks []task.Task
-	err := r.db.Where("updated_at > ?", after).Order("updated_at DESC").Find(&tasks).Error
-	return tasks, err
+// --- TaskResult -------------------------------------------------------------
+
+func (r *Repository) CreateTaskResult(result *task.TaskResult) error {
+	return r.db.Create(result).Error
 }
 
-// GetCreatedTasks retrieves all created tasks
-func (r *Repository) GetCreatedTasks() ([]task.Task, error) {
-	return r.GetTasksByStatus(task.TaskStatusCreated, 0, 0)
+func (r *Repository) GetTaskResultsByTaskID(taskID uint) ([]task.TaskResult, error) {
+	var results []task.TaskResult
+	err := r.db.Where("task_id = ?", taskID).Order("attempt ASC").Find(&results).Error
+	return results, err
 }
 
-// GetPendingTasks retrieves all pending tasks
-func (r *Repository) GetPendingTasks() ([]task.Task, error) {
-	return r.GetTasksByStatus(task.TaskStatusPending, 0, 0)
-}
-
-// Create creates a new task execution result
-func (r *Repository) CreateTaskResult(result *task.TaskExecutionResult) error {
-	taskResult := &task.TaskExecutionResult{
-		ID:        uuid.New(),
-		TaskID:    result.TaskID,
-		Success:   result.Success,
-		Output:    result.Output,
-		Error:     result.Error,
-		StartTime: result.StartTime,
-		EndTime:   result.EndTime,
-		Duration:  result.Duration,
-		CreatedAt: time.Now(),
-	}
-
-	return r.db.Create(taskResult).Error
-}
-
-// GetByID retrieves a task execution result by its ID
-func (r *Repository) GetTaskResultByID(id uuid.UUID) (*task.TaskExecutionResult, error) {
-	var result task.TaskExecutionResult
-	err := r.db.Where("id = ?", id).First(&result).Error
+func (r *Repository) GetLatestTaskResultByTaskID(taskID uint) (*task.TaskResult, error) {
+	var result task.TaskResult
+	err := r.db.Where("task_id = ?", taskID).Order("attempt DESC").First(&result).Error
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return nil, fmt.Errorf("task execution result with id %s not found", id)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("no results found for task %d", taskID)
 		}
 		return nil, err
 	}
 	return &result, nil
 }
 
-// GetByTaskID retrieves all execution results for a specific task
-func (r *Repository) GetTaskResultsByTaskID(taskID uuid.UUID, limit, offset int) ([]task.TaskExecutionResult, error) {
-	var results []task.TaskExecutionResult
-	query := r.db.Where("task_id = ?", taskID)
+// --- Transaction -------------------------------------------------------------
 
-	if limit > 0 {
-		query = query.Limit(limit)
-	}
-
-	if offset > 0 {
-		query = query.Offset(offset)
-	}
-
-	err := query.Order("executed_at DESC").Find(&results).Error
-	return results, err
-}
-
-// GetAll retrieves all task execution results with optional filtering
-func (r *Repository) GetAllTaskResults(limit, offset int) ([]task.TaskExecutionResult, error) {
-	var results []task.TaskExecutionResult
-	query := r.db.Model(&task.TaskExecutionResult{})
-
-	if limit > 0 {
-		query = query.Limit(limit)
-	}
-
-	if offset > 0 {
-		query = query.Offset(offset)
-	}
-
-	err := query.Order("executed_at DESC").Find(&results).Error
-	return results, err
-}
-
-// GetSuccessful retrieves all successful task execution results
-func (r *Repository) GetSuccessfulTaskResults(limit, offset int) ([]task.TaskExecutionResult, error) {
-	var results []task.TaskExecutionResult
-	query := r.db.Where("success = ?", true)
-
-	if limit > 0 {
-		query = query.Limit(limit)
-	}
-
-	if offset > 0 {
-		query = query.Offset(offset)
-	}
-
-	err := query.Order("executed_at DESC").Find(&results).Error
-	return results, err
-}
-
-// GetFailed retrieves all failed task execution results
-func (r *Repository) GetFailedTaskResults(limit, offset int) ([]task.TaskExecutionResult, error) {
-	var results []task.TaskExecutionResult
-	query := r.db.Where("success = ?", false)
-
-	if limit > 0 {
-		query = query.Limit(limit)
-	}
-
-	if offset > 0 {
-		query = query.Offset(offset)
-	}
-
-	err := query.Order("executed_at DESC").Find(&results).Error
-	return results, err
-}
-
-// GetLatestByTaskID retrieves the most recent execution result for a task
-func (r *Repository) GetLatestTaskResultByTaskID(taskID uuid.UUID) (*task.TaskExecutionResult, error) {
-	var result task.TaskExecutionResult
-	err := r.db.Where("task_id = ?", taskID).
-		Order("executed_at DESC").
-		First(&result).Error
-
-	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return nil, fmt.Errorf("no execution results found for task %s", taskID)
-		}
-		return nil, err
-	}
-	return &result, nil
-}
-
-// Delete deletes a task execution result by ID
-func (r *Repository) DeleteTaskResult(id uuid.UUID) error {
-	result := r.db.Delete(&task.TaskExecutionResult{}, "id = ?", id)
-	if result.Error != nil {
-		return result.Error
-	}
-
-	if result.RowsAffected == 0 {
-		return fmt.Errorf("task execution result with id %s not found", id)
-	}
-
-	return nil
-}
-
-// DeleteByTaskID deletes all task execution results for a specific task
-func (r *Repository) DeleteTaskResultsByTaskID(taskID uuid.UUID) error {
-	return r.db.Where("task_id = ?", taskID).Delete(&task.TaskExecutionResult{}).Error
-}
-
-// Count returns the total number of task execution results
-func (r *Repository) CountTaskResults() (int64, error) {
-	var count int64
-	err := r.db.Model(&task.TaskExecutionResult{}).Count(&count).Error
-	return count, err
-}
-
-// CountByTaskID returns the number of execution results for a specific task
-func (r *Repository) CountTaskResultsByTaskID(taskID uuid.UUID) (int64, error) {
-	var count int64
-	err := r.db.Model(&task.TaskExecutionResult{}).
-		Where("task_id = ?", taskID).
-		Count(&count).Error
-	return count, err
-}
-
-// CountSuccessful returns the number of successful task execution results
-func (r *Repository) CountSuccessfulTaskResults() (int64, error) {
-	var count int64
-	err := r.db.Model(&task.TaskExecutionResult{}).
-		Where("success = ?", true).
-		Count(&count).Error
-	return count, err
-}
-
-// CountFailed returns the number of failed task execution results
-func (r *Repository) CountFailedTaskResults() (int64, error) {
-	var count int64
-	err := r.db.Model(&task.TaskExecutionResult{}).
-		Where("success = ?", false).
-		Count(&count).Error
-	return count, err
-}
-
-// GetResultsExecutedAfter retrieves task execution results after a specific time
-func (r *Repository) GetTaskResultsExecutedAfter(after time.Time) ([]task.TaskExecutionResult, error) {
-	var results []task.TaskExecutionResult
-	err := r.db.Where("executed_at > ?", after).
-		Order("executed_at DESC").
-		Find(&results).Error
-	return results, err
-}
-
-// GetResultsCreatedAfter retrieves task execution results created after a specific time
-func (r *Repository) GetTaskResultsCreatedAfter(after time.Time) ([]task.TaskExecutionResult, error) {
-	var results []task.TaskExecutionResult
-	err := r.db.Where("created_at > ?", after).
-		Order("created_at DESC").
-		Find(&results).Error
-	return results, err
-}
-
-// Transaction executes multiple operations in a transaction
 func (r *Repository) Transaction(fn func(RepositoryInterface) error) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
 		txRepo := &Repository{db: tx}

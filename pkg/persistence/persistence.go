@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/hhace/taskflow/internal/task"
+	"github.com/hhace/taskflow/internal/workflow"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -105,51 +106,26 @@ func Close(db *gorm.DB) error {
 	return sqlDB.Close()
 }
 
-// Migrate runs auto migration for all task
+// Migrate runs auto migration for all TaskFlow models
 func Migrate(db *gorm.DB) error {
 	if db == nil {
 		return fmt.Errorf("database not connected")
 	}
 
-	// Enable UUID extension for PostgreSQL
-	if err := db.Exec("CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\"").Error; err != nil {
-		return fmt.Errorf("failed to create uuid extension: %w", err)
-	}
-
-	// Auto-migrate models individually to get actionable errors
+	// Auto-migrate models individually, in dependency order, to get actionable errors.
 	models := []struct {
 		name string
 		mdl  interface{}
 	}{
+		{name: "workflow", mdl: &workflow.Workflow{}},
 		{name: "task", mdl: &task.Task{}},
-		{name: "task_execution_result", mdl: &task.TaskExecutionResult{}},
-		// add other models here as needed
+		{name: "task_dependency", mdl: &task.TaskDependency{}},
+		{name: "task_result", mdl: &task.TaskResult{}},
 	}
 
 	for _, m := range models {
 		slog.Info("Migrating model", "model", m.name)
 		if err := db.AutoMigrate(m.mdl); err != nil {
-			// If GORM introspection fails (some Postgres variants return cryptic
-			// errors like "insufficient arguments"), attempt a minimal SQL
-			// fallback to create the table for the known `task` model so the
-			// service can start and we can iterate from there.
-			if m.name == "task" {
-				slog.Warn("AutoMigrate failed for tasks, attempting SQL fallback", "error", err)
-				createTasksSQL := `CREATE TABLE IF NOT EXISTS tasks (
-					id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-					schedule varchar(255) NOT NULL,
-					command text,
-					status varchar(20) NOT NULL DEFAULT 'created',
-					created_at timestamptz DEFAULT now(),
-					updated_at timestamptz DEFAULT now()
-				);`
-				if execErr := db.Exec(createTasksSQL).Error; execErr != nil {
-					return fmt.Errorf("failed to migrate model %s: %w; fallback also failed: %v", m.name, err, execErr)
-				}
-				slog.Info("Created tasks table via SQL fallback")
-				continue
-			}
-
 			return fmt.Errorf("failed to migrate model %s: %w", m.name, err)
 		}
 	}

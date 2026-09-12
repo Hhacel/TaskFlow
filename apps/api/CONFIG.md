@@ -1,11 +1,11 @@
-# Scheduler Configuration Guide
+# API Gateway Configuration Guide
 
-The scheduler supports configuration through both YAML files and environment variables. Environment variables take precedence over YAML configuration.
+The API Gateway supports configuration through both YAML files and environment variables. Environment variables take precedence over YAML configuration.
 
 ## Configuration Methods
 
 ### 1. Environment Variables Only (Default)
-The scheduler will use default values if no config file is provided:
+The API Gateway will use default values if no config file is provided:
 
 ```bash
 PORT=8081
@@ -43,8 +43,8 @@ database:
 
 nats:
   url: "nats://nats:4222"
-  task_schedule_subject: "tasks.schedule"
-  task_result_subject: "tasks.results"
+  workflow_start_subject: "workflow.commands.start"
+  workflow_cancel_subject: "workflow.commands.cancel"
   reconnect_wait_seconds: 2
   max_reconnects: 60
 
@@ -110,8 +110,8 @@ NATS_URL=nats://prod-nats:4222     # Override NATS URL
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `nats.url` | string | `"nats://nats:4222"` | NATS server URL |
-| `nats.task_schedule_subject` | string | `"tasks.schedule"` | Subject to publish tasks to |
-| `nats.task_result_subject` | string | `"tasks.results"` | Subject to consume results from |
+| `nats.workflow_start_subject` | string | `"workflow.commands.start"` | Subject to publish "start workflow" commands to |
+| `nats.workflow_cancel_subject` | string | `"workflow.commands.cancel"` | Subject to publish "cancel workflow" commands to |
 | `nats.reconnect_wait_seconds` | int | `2` | Seconds between reconnect attempts |
 | `nats.max_reconnects` | int | `60` | Maximum reconnection attempts (-1 for unlimited) |
 
@@ -127,152 +127,3 @@ NATS_URL=nats://prod-nats:4222     # Override NATS URL
 
 **Environment Overrides:**
 - `LOG_LEVEL` - Overrides `logging.level`
-
-## Docker Compose Usage
-
-### Using Environment Variables Only
-```yaml
-scheduler:
-  environment:
-    - PORT=8081
-    - DB_HOST=postgres
-    - DB_PASSWORD=secret
-    - NATS_URL=nats://nats:4222
-```
-
-### Using Config File
-```yaml
-api:
-  environment:
-    - CONFIG_PATH=/app/config.yaml
-  volumes:
-    - ./apps/api/config.yaml:/app/config.yaml:ro
-```
-
-### Hybrid Approach
-```yaml
-api:
-  environment:
-    - CONFIG_PATH=/app/config.yaml
-    - PORT=9000  # Override config file
-    - DB_PASSWORD=secret  # Override config file
-  volumes:
-    - ./apps/api/config.yaml:/app/config.yaml:ro
-```
-
-## Validation
-
-The scheduler validates configuration on startup and will exit with an error if:
-- Required fields are missing
-- Values are invalid (e.g., negative connection counts)
-- Config file is malformed YAML
-- Cannot connect to database or NATS
-
-## Viewing Current Configuration
-
-Access the `/config` endpoint to see the active configuration:
-
-```bash
-curl http://localhost:8081/config
-```
-
-Response:
-```json
-{
-  "server": {
-    "port": "8081"
-  },
-  "database": {
-    "host": "postgres",
-    "port": "5432",
-    "database": "taskflow"
-  },
-  "nats": {
-    "url": "nats://nats:4222"
-  }
-}
-```
-
-## Examples
-
-### Development (Local)
-```yaml
-server:
-  port: "8081"
-
-database:
-  host: "localhost"
-  port: "5432"
-  user: "postgres"
-  password: "postgres"
-  database: "taskflow_dev"
-  ssl_mode: "disable"
-  max_open_conns: 10
-  max_idle_conns: 2
-
-nats:
-  url: "nats://localhost:4222"
-
-logging:
-  level: "debug"
-  format: "text"
-```
-
-### Production
-```yaml
-server:
-  port: "8081"
-
-database:
-  host: "postgres-primary.production.svc.cluster.local"
-  port: "5432"
-  user: "taskflow"
-  password: "${DB_PASSWORD}"  # From environment
-  database: "taskflow"
-  ssl_mode: "verify-full"
-  max_open_conns: 100
-  max_idle_conns: 25
-  conn_max_lifetime_minutes: 30
-
-nats:
-  url: "nats://nats-01:4222,nats-02:4222,nats-03:4222"
-  reconnect_wait_seconds: 5
-  max_reconnects: -1  # Unlimited reconnects
-
-logging:
-  level: "info"
-  format: "json"
-```
-
-### Testing
-```yaml
-server:
-  port: "8081"
-
-database:
-  host: "localhost"
-  port: "5433"
-  user: "test"
-  password: "test"
-  database: "taskflow_test"
-  ssl_mode: "disable"
-  max_open_conns: 5
-  max_idle_conns: 1
-
-nats:
-  url: "nats://localhost:4222"
-
-logging:
-  level: "debug"
-  format: "text"
-```
-
-## Database Connection String
-
-The scheduler builds the PostgreSQL connection string from config:
-
-```
-host={host} port={port} user={user} password={password} dbname={database} sslmode={ssl_mode}
-```
-
-You can verify the connection string is correct by checking the logs on startup.

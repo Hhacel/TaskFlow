@@ -179,19 +179,20 @@ func TestFullDatabaseWorkflow(t *testing.T) {
 
 		// Use database - create a test taskObj
 		taskObj := &task.Task{
-			Schedule: "*/5 * * * *",
-			Command:  "echo test",
-			Status:   task.TaskStatusCreated,
+			WorkflowID: 1,
+			Name:       "test-task",
+			Command:    "echo test",
+			Status:     task.TaskStatusPending,
 		}
 		err = db.Create(taskObj).Error
 		require.NoError(t, err)
-		assert.NotEqual(t, "", taskObj.ID.String())
+		assert.NotZero(t, taskObj.ID)
 
 		// Verify task was created
 		var retrievedTask task.Task
 		err = db.First(&retrievedTask, "id = ?", taskObj.ID).Error
 		require.NoError(t, err)
-		assert.Equal(t, taskObj.Schedule, retrievedTask.Schedule)
+		assert.Equal(t, taskObj.Name, retrievedTask.Name)
 		assert.Equal(t, taskObj.Command, retrievedTask.Command)
 
 		// Clean up - delete test task

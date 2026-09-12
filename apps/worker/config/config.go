@@ -25,7 +25,7 @@ type ServerConfig struct {
 // NATSConfig contains NATS connection settings
 type NATSConfig struct {
 	URL                 string `yaml:"url"`
-	TaskScheduleSubject string `yaml:"task_schedule_subject"`
+	TaskDispatchSubject string `yaml:"task_dispatch_subject"`
 	TaskResultSubject   string `yaml:"task_result_subject"`
 	QueueGroupName      string `yaml:"queue_group_name"`
 	ReconnectWait       int    `yaml:"reconnect_wait_seconds"`
@@ -34,8 +34,9 @@ type NATSConfig struct {
 
 // WorkerConfig contains worker execution settings
 type WorkerConfig struct {
-	TaskTimeoutMinutes int `yaml:"task_timeout_minutes"`
-	MaxConcurrentTasks int `yaml:"max_concurrent_tasks"`
+	// DefaultTimeoutSeconds is used when a dispatched task does not specify
+	// its own timeout.
+	DefaultTimeoutSeconds int `yaml:"default_timeout_seconds"`
 }
 
 // LoggingConfig contains logging settings
@@ -52,15 +53,14 @@ func DefaultConfig() *Config {
 		},
 		NATS: NATSConfig{
 			URL:                 "nats://nats:4222",
-			TaskScheduleSubject: "tasks.schedule",
+			TaskDispatchSubject: "tasks.dispatch",
 			TaskResultSubject:   "tasks.results",
 			QueueGroupName:      "workers",
 			ReconnectWait:       2,
 			MaxReconnects:       60,
 		},
 		Worker: WorkerConfig{
-			TaskTimeoutMinutes: 5,
-			MaxConcurrentTasks: 10,
+			DefaultTimeoutSeconds: 300,
 		},
 		Logging: LoggingConfig{
 			Level:  "info",
@@ -117,8 +117,8 @@ func LoadConfigWithEnvOverrides(filepath string) (*Config, error) {
 
 	if timeout := os.Getenv("TASK_TIMEOUT"); timeout != "" {
 		if duration, err := time.ParseDuration(timeout); err == nil {
-			slog.Debug("Overriding task timeout with env var", "value", timeout)
-			config.Worker.TaskTimeoutMinutes = int(duration.Minutes())
+			slog.Debug("Overriding default task timeout with env var", "value", timeout)
+			config.Worker.DefaultTimeoutSeconds = int(duration.Seconds())
 		}
 	}
 
@@ -129,9 +129,9 @@ func LoadConfigWithEnvOverrides(filepath string) (*Config, error) {
 	return config, nil
 }
 
-// GetTaskTimeout returns the task timeout as a duration
-func (c *Config) GetTaskTimeout() time.Duration {
-	return time.Duration(c.Worker.TaskTimeoutMinutes) * time.Minute
+// DefaultTimeout returns the default task timeout as a duration
+func (c *Config) DefaultTimeout() time.Duration {
+	return time.Duration(c.Worker.DefaultTimeoutSeconds) * time.Second
 }
 
 // Validate checks if the configuration is valid
@@ -144,20 +144,16 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("NATS URL is required")
 	}
 
-	if c.NATS.TaskScheduleSubject == "" {
-		return fmt.Errorf("task schedule subject is required")
+	if c.NATS.TaskDispatchSubject == "" {
+		return fmt.Errorf("task dispatch subject is required")
 	}
 
 	if c.NATS.TaskResultSubject == "" {
 		return fmt.Errorf("task result subject is required")
 	}
 
-	if c.Worker.TaskTimeoutMinutes <= 0 {
-		return fmt.Errorf("task timeout must be positive")
-	}
-
-	if c.Worker.MaxConcurrentTasks <= 0 {
-		return fmt.Errorf("max concurrent tasks must be positive")
+	if c.Worker.DefaultTimeoutSeconds <= 0 {
+		return fmt.Errorf("default timeout must be positive")
 	}
 
 	return nil

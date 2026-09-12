@@ -15,11 +15,11 @@ logs:
 
 # Development commands
 test:
-	@powershell -Command "$$packages = go list ./... | Where-Object { $$_ -notmatch '/cmd$$' -and $$_ -notmatch '/internal/api$$' -and $$_ -notmatch '/pkg/persistence$$' }; go test $$packages -cover"
+	@powershell -Command "$$packages = go list ./... | Where-Object { $$_ -notmatch '/cmd$$' -and $$_ -notmatch '/pkg/persistence$$' }; go test $$packages -cover"
 
 # Run unit tests only (fast)
 test-unit:
-	@powershell -Command "$$packages = go list ./... | Where-Object { $$_ -notmatch '/cmd$$' -and $$_ -notmatch '/internal/api$$' -and $$_ -notmatch '/pkg/persistence$$' }; go test $$packages -short -cover"
+	@powershell -Command "$$packages = go list ./... | Where-Object { $$_ -notmatch '/cmd$$' -and $$_ -notmatch '/pkg/persistence$$' }; go test $$packages -short -cover"
 
 # Persistence integration tests (requires PostgreSQL)
 test-persistence:

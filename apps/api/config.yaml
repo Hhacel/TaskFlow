@@ -1,4 +1,4 @@
-# Scheduler Configuration
+# API Gateway Configuration
 # This file can be overridden by environment variables
 
 server:
@@ -14,6 +14,13 @@ database:
   max_open_conns: 25
   max_idle_conns: 5
   conn_max_lifetime_minutes: 60
+
+nats:
+  url: "nats://nats:4222"
+  workflow_start_subject: "workflow.commands.start"
+  workflow_cancel_subject: "workflow.commands.cancel"
+  reconnect_wait_seconds: 2
+  max_reconnects: 60
 
 logging:
   level: "info"  # debug, info, warn, error

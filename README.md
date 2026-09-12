@@ -1,202 +1,166 @@
-# 🔄 TaskFlow: A Distributed Task Scheduling System
+# 🔄 TaskFlow: A Distributed Workflow Orchestration System
 
-> **A modern, scalable microservices-based system for distributed task orchestration**
+> **A modern, scalable microservices-based system for DAG-based workflow orchestration**
 
-[![Go](https://img.shields.io/badge/Go-1.25.4+-00ADD8?style=flat-square&logo=go)](https://golang.org/)
+[![Go](https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat-square&logo=go)](https://golang.org/)
 
-TaskFlow is a **production-ready microservices ecosystem** built in Go for scheduling, executing, and monitoring distributed tasks. Designed with **scalability**, **resilience**, and **observability** at its core, using NATS for asynchronous task queuing and gRPC for synchronous inter-service communication (Scheduler→Notifier).
+TaskFlow is a **microservices ecosystem** built in Go for defining, executing, and monitoring workflows made of interdependent tasks. A workflow is a **Directed Acyclic Graph (DAG)** of tasks: the Orchestrator resolves the graph, dispatches ready tasks to Workers over NATS, and reacts to their results to progress, retry, complete, fail, or cancel the workflow.
 
 ## 🏗️ High-Level Architecture
 
-The platform consists of **specialized microservices** that communicate via NATS message queues for task distribution and gRPC for notification delivery, ensuring robust, fault-tolerant task processing.
-
-### 📊 System Architecture
 ```mermaid
 flowchart LR
-    %% Row 1: User Input
-    User["User<br/>Client"] 
-    
-    %% Row 2: API
-    API["API<br/>apps/api"]
-    
-    %% Row 3: Core Services (horizontal alignment)
-    SCH["Scheduler<br/>apps/scheduler"]
-    NOT["Notifier<br/>apps/notifier"]
-    
-    %% Row 4: Worker
+    User["User<br/>Client"]
+    API["API Gateway<br/>apps/api"]
+    ORCH["Orchestrator<br/>apps/orchestrator"]
     WRK["Worker<br/>apps/worker"]
-    
-    %% Row 5: External
-    External["External APIs"]
-    Email["Email/Slack<br/>Webhooks"]
-    
-    %% Data Layer (bottom row)
-    DB[("Database")]
-    MQ_Task{{"Task Queue"}}
-    MQ_Result{{"Result Queue"}}
+    DB[("PostgreSQL")]
+    NATS{{"NATS"}}
 
-    %% Main Flow (numbered for clarity)
-    User -->|"1. Request"| API
-    API -->|"2. Store"| DB
-    SCH -->|"3. Load & Queue"| MQ_Task
-    MQ_Task -->|"4. Consume"| WRK
-    WRK -->|"5. Execute"| External
-    WRK -->|"6. Result"| MQ_Result
-    MQ_Result -->|"7. Process"| SCH
-    SCH -->|"8. Update"| DB
-    SCH -->|"9. gRPC Notify"| NOT
-    NOT -->|"10. Alert"| Email
+    User -->|"1. Create/Start/Cancel/Inspect"| API
+    API -->|"CRUD"| DB
+    API -->|"start / cancel commands"| NATS
+    NATS -->|"commands"| ORCH
+    ORCH -->|"read/write graph & status"| DB
+    ORCH -->|"tasks.dispatch"| NATS
+    NATS -->|"dispatch"| WRK
+    WRK -->|"tasks.results"| NATS
+    NATS -->|"results"| ORCH
 
-    %% Styling
     classDef service fill:#e3f2fd,stroke:#1976d2,stroke-width:2px,color:#000000
     classDef data fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px,color:#000000
     classDef external fill:#e8f5e8,stroke:#388e3c,stroke-width:2px,color:#000000
-    classDef support fill:#fff3e0,stroke:#f57c00,stroke-width:2px,color:#000000
-    
-    class API,SCH,NOT,WRK service
-    class DB,MQ_Task,MQ_Result data
-    class User,External,Email external
+
+    class API,ORCH,WRK service
+    class DB,NATS data
+    class User external
 ```
 
-### 📋 DB Schema
+### 📋 Domain Model
+
 ```mermaid
 erDiagram
-    tasks
+    workflows ||--o{ tasks : contains
+    tasks ||--o{ task_dependencies : "depends on"
+    tasks ||--o{ task_results : "execution attempts"
 
-    tasks {
-        UUID id PK
-        string schedule
-        string[] command
-        string status "created, pending, completed, failed"
+    workflows {
+        uint id PK
+        string name
+        string status "CREATED, RUNNING, COMPLETED, FAILED, CANCELLED"
         timestamp created_at
         timestamp updated_at
     }
 
+    tasks {
+        uint id PK
+        uint workflow_id FK
+        string name
+        string command
+        string status "PENDING, RUNNING, SUCCEEDED, FAILED, CANCELLED"
+        int timeout "nullable, seconds"
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    task_dependencies {
+        uint task_id PK,FK
+        uint depends_on_task_id PK,FK
+    }
+
+    task_results {
+        uint id PK
+        uint task_id FK
+        int attempt
+        bool success
+        string output
+        string error
+        timestamp start_time
+        timestamp end_time
+    }
 ```
-### 🧩 Core Components
+
+## 🧩 Core Components
 
 ### 🚀 Microservices (`apps/`)
-Each service is a specialized, independently deployable component:
 
-#### 📅 **API** (`apps/api`) 
-> *The system's front door for task management*
+#### 🌐 **API Gateway** (`apps/api`)
+> *The system's front door for workflow management*
 
-- **Authentication & Authorization** - JWT validation and user management
-- **Request Validation** - Input sanitization and schema validation  
-- **Rate Limiting** - Traffic control and abuse prevention
-- **RESTful API** - HTTP endpoints for all task operations
-- **Task Validation** - Business logic and constraint checking
-- **Persistence Management** - Database operations and state tracking
+Implements the 5 supported use cases as a REST API:
 
-#### ⏰ **Scheduler** (`apps/scheduler`)
-> *The orchestration brain and result aggregator*
+| Use Case | Endpoint |
+|----------|----------|
+| Create Workflow (validates the task graph, incl. cycle detection) | `POST /api/v1/workflows` |
+| Start Workflow (async, returns `202 Accepted`) | `POST /api/v1/workflows/{id}/start` |
+| Get Workflow Status | `GET /api/v1/workflows/{id}` |
+| Get Task Results | `GET /api/v1/tasks/{taskId}/results` |
+| Cancel Workflow (async, returns `202 Accepted`) | `POST /api/v1/workflows/{id}/cancel` |
 
-- **Cron-based Scheduling** - Automatic task triggering based on schedules
-- **Queue Publishing** - Message broker integration for task dispatch
-- **Result Processing** - Task outcome analysis and storage
-- **Status Management** - Real-time state updates and history tracking
-- **Dynamic Task Loading** - Periodic refresh of scheduled tasks from database
+Create/Status/Results are handled directly against PostgreSQL. Start/Cancel are delegated to the Orchestrator over NATS.
+
+#### 🧠 **Orchestrator** (`apps/orchestrator`)
+> *The orchestration engine — absorbs the responsibilities of the former `scheduler` and `notifier` services*
+
+- Resolves the `TaskDependency` DAG and dispatches every `PENDING` task whose dependencies have all `SUCCEEDED`.
+- Consumes task results, retries failed tasks up to `orchestrator.max_attempts`, and fails the workflow (cancelling remaining tasks) when a task can no longer be retried.
+- Completes the workflow once every task has `SUCCEEDED`.
+- Reacts to `start`/`cancel` commands published by the API Gateway.
+
+See [apps/orchestrator/README.md](./apps/orchestrator/README.md) for subject-level details.
 
 #### ⚡ **Worker** (`apps/worker`)
 > *The execution engine*
 
-- **Queue Consumption** - Real-time task processing from message queues
-- **Task Execution** - Pluggable task handlers for diverse workloads
-- **Result Publishing** - Status updates and output data management
-- **Error Handling** - Retry logic and failure recovery mechanisms
-
-#### 🔔 **Notifier** (`apps/notifier`)
-> *The communication gateway*
-
-- **Multi-channel Delivery** - Email, Slack, webhooks, and more
-- **Event Processing** - Smart filtering and routing based on conditions
-- **Delivery Confirmation** - Reliable notification with retry mechanisms
-- **Template Management** - Customizable message formatting
-
----
+- Consumes dispatched tasks from NATS (`tasks.dispatch`, queue group `workers`).
+- Executes each task's shell command with a per-task or default timeout.
+- Publishes the outcome to `tasks.results` for the Orchestrator to process.
 
 ### 📚 Shared Libraries (`pkg/`)
-Reusable components across all services:
 
-#### 🔐 **Authentication** (`pkg/auth`)
-- JWT token generation, validation, and middleware
-- Role-based access control (RBAC) utilities
-- Session management and security helpers
+- **`pkg/messaging`** — `Broker` abstraction over NATS (`Publish`, `Subscribe`, `QueueSubscribe`), with a synchronous in-memory `MockBroker` for tests.
+- **`pkg/persistence`** — GORM-based PostgreSQL connection, migrations, and the `RepositoryInterface` used by the API Gateway and Orchestrator (with a `MockRepository` for tests).
+- **`pkg/tfutil`** — small generic helpers.
 
----
+### 🗺️ State Machines
 
-### 🔌 Integration Layer
+**Workflow:** `CREATED → RUNNING → {COMPLETED, FAILED, CANCELLED}`, plus `CREATED → CANCELLED`.
 
-#### 📋 **Protocol Definitions** (`proto/`)
-> *gRPC contracts for Scheduler→Notifier communication*
+**Task:** `PENDING → {RUNNING, CANCELLED}`; `RUNNING → {SUCCEEDED, FAILED, CANCELLED}`; `FAILED → {RUNNING (retry), CANCELLED}`.
 
-- **gRPC Service Definitions** - Type-safe notification API specifications
-- **Message Schemas** - Structured notification event contracts
-- **Code Generation** - Auto-generated client/server stubs for notification service
-- **Version Management** - Backward-compatible API evolution
+### 🛠️ Deployment Configuration (`deployments/`)
 
-#### 🗄️ **Database Migrations** (`migrations/`)
-- **Schema Evolution** - Version-controlled database changes
-- **Data Migrations** - Safe data transformation scripts
-- **Rollback Support** - Reversible database operations
+- **Prometheus** (`deployments/prometheus/`) — service health and performance monitoring.
 
-#### 🛠️ **Deployment Configuration** (`deployments/`)
+## 🔄 Workflow Lifecycle
 
-##### 📊 **Prometheus Setup** (`deployments/prometheus/`)
-- **Metrics Collection** - Service health and performance monitoring
-- **Alerting Rules** - Proactive issue detection and notification
-- **Dashboard Configuration** - Grafana integration and visualization
-
-## 🔄 Task Lifecycle & Data Flow
-
-> **End-to-end journey of a task through the TaskFlow ecosystem**
-
-### 📋 Process Overview
-
-```
-User Request → Authentication → Scheduling → Persistence → Execution → Aggregation → Notification
-```
-
-### 🔢 Detailed Flow Steps
-
-| Step | Component | Action | Description |
-|------|-----------|--------|-------------|
-| **1** | 👤 **User** | `HTTP Request` | Client submits task creation request |
-| **2** | 🌐 **API** | `Authentication` | JWT validation via `pkg/auth` |
-| **3** | 🌐 **API** | `Validate & Store` | Task validation, ID assignment, DB persistence (`created` status) |
-| **4** | ⏰ **Scheduler** | `Load & Schedule` | Periodically loads `created` tasks and schedules via cron |
-| **5** | ⏰ **Scheduler** | `Queue Dispatch` | Publish task message to **Task Queue** when due, update to `pending` |
-| **6** | ⚡ **Worker** | `Consume & Execute` | Pick up task, execute business logic |
-| **7** | ⚡ **Worker** | `External Integration` | Call external APIs, process data, perform work |
-| **8** | ⚡ **Worker** | `Publish Result` | Send outcome (success/failure/logs) to **Result Queue** |
-| **9** | ⏰ **Scheduler** | `Process Result` | Consume result, update final status (`completed`/`failed`) |
-| **10** | ⏰ **Scheduler** | `Store Logs` | Persist execution logs and task history |
-| **11** | ⏰ **Scheduler** | `gRPC Call` | Send notification request to Notifier via gRPC (synchronous, type-safe) |
-| **12** | 🔔 **Notifier** | `Send Alert` | Deliver notifications via email, Slack, webhooks |
-
-### 🔍 Continuous Monitoring
-
-Throughout the entire lifecycle, **Prometheus** continuously scrapes `/metrics` endpoints from all services, providing:
-
-- 📊 **Real-time Metrics** - Performance, throughput, and health indicators
-- 🚨 **Alerting** - Proactive issue detection and escalation
-- 📈 **Dashboards** - Visual monitoring and operational insights
-- 🔍 **Troubleshooting** - Detailed logs and trace correlation
-
----
+| Step | Component | Action |
+|------|-----------|--------|
+| **1** | 👤 **User** | `POST /api/v1/workflows` — define tasks + dependencies |
+| **2** | 🌐 **API** | Validate the graph (cycles, duplicate/unknown refs), persist Workflow (`CREATED`) + Tasks (`PENDING`) + dependencies |
+| **3** | 👤 **User** | `POST /api/v1/workflows/{id}/start` |
+| **4** | 🌐 **API** | Publish `workflow.commands.start`, return `202 Accepted` |
+| **5** | 🧠 **Orchestrator** | Transition workflow to `RUNNING`, dispatch every root task (no dependencies) |
+| **6** | ⚡ **Worker** | Consume dispatched task, execute its command, publish the result |
+| **7** | 🧠 **Orchestrator** | Persist the result; on success mark the task `SUCCEEDED` and dispatch newly-ready dependents; on failure retry or fail the workflow |
+| **8** | 🧠 **Orchestrator** | Once every task has `SUCCEEDED`, mark the workflow `COMPLETED` |
+| **9** | 👤 **User** | `GET /api/v1/workflows/{id}` and `GET /api/v1/tasks/{taskId}/results` to inspect progress and outcomes at any time |
 
 ## 🚀 Quick Start
 
 ```bash
 # Clone the repository
-git clone https://github.com/Hhacel/TaskFlow.git
+git clone https://github.com/hhace/taskflow.git
 cd TaskFlow
 
 # Start the entire stack
 docker-compose up -d
 
 # Check service health
-curl http://localhost:8081/health
+curl http://localhost:8081/health       # API Gateway
+curl http://localhost:8084/health       # Orchestrator
+curl http://localhost:8082/health       # Worker
 ```
+
 ---
-*Documentation are generated with use of Github Copilot*
+*Documentation is generated with the use of GitHub Copilot*

@@ -10,10 +10,11 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Config represents the scheduler configuration
+// Config represents the API Gateway configuration
 type Config struct {
 	Server   ServerConfig       `yaml:"server"`
 	Database persistence.Config `yaml:"database"`
+	NATS     NATSConfig         `yaml:"nats"`
 	Logging  LoggingConfig      `yaml:"logging"`
 }
 
@@ -22,13 +23,14 @@ type ServerConfig struct {
 	Port string `yaml:"port"`
 }
 
-// NATSConfig contains NATS connection settings
+// NATSConfig contains NATS connection settings and the subjects used to send
+// control commands to the Orchestrator.
 type NATSConfig struct {
-	URL                 string `yaml:"url"`
-	TaskScheduleSubject string `yaml:"task_schedule_subject"`
-	TaskResultSubject   string `yaml:"task_result_subject"`
-	ReconnectWait       int    `yaml:"reconnect_wait_seconds"`
-	MaxReconnects       int    `yaml:"max_reconnects"`
+	URL                   string `yaml:"url"`
+	WorkflowStartSubject  string `yaml:"workflow_start_subject"`
+	WorkflowCancelSubject string `yaml:"workflow_cancel_subject"`
+	ReconnectWait         int    `yaml:"reconnect_wait_seconds"`
+	MaxReconnects         int    `yaml:"max_reconnects"`
 }
 
 // LoggingConfig contains logging settings
@@ -53,6 +55,13 @@ func DefaultConfig() *Config {
 			MaxOpenConns:           25,
 			MaxIdleConns:           5,
 			ConnMaxLifetimeMinutes: 60,
+		},
+		NATS: NATSConfig{
+			URL:                   "nats://nats:4222",
+			WorkflowStartSubject:  "workflow.commands.start",
+			WorkflowCancelSubject: "workflow.commands.cancel",
+			ReconnectWait:         2,
+			MaxReconnects:         60,
 		},
 		Logging: LoggingConfig{
 			Level:  "info",
@@ -125,6 +134,11 @@ func LoadConfigWithEnvOverrides(filepath string) (*Config, error) {
 	if dbName := os.Getenv("DB_NAME"); dbName != "" {
 		slog.Info("Overriding DB name with env var", "dbName", dbName)
 		config.Database.Database = dbName
+	}
+
+	if natsURL := os.Getenv("NATS_URL"); natsURL != "" {
+		slog.Info("Overriding NATS URL with env var", "natsURL", natsURL)
+		config.NATS.URL = natsURL
 	}
 
 	if logLevel := os.Getenv("LOG_LEVEL"); logLevel != "" {

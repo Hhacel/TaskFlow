@@ -1,8 +1,12 @@
 openapi: 3.0.3
 info:
-  title: TaskFlow Scheduler API
-  description: The main service for managing scheduled tasks in the TaskFlow system. This service handles authentication, request validation, task scheduling, and persistence.
-  version: 1.0.0
+  title: TaskFlow API Gateway
+  description: >
+    REST gateway for the TaskFlow workflow orchestration system. Implements
+    the 5 supported use cases: create, start, inspect and cancel a workflow,
+    and retrieve task results. All process-control decisions (dependency
+    resolution, task dispatch) are made asynchronously by the Orchestrator.
+  version: 2.0.0
   contact:
     name: TaskFlow API Support
     url: https://github.com/hhace/taskflow
@@ -14,210 +18,248 @@ info:
 servers:
   - url: http://localhost:8081
     description: Local development server
-  - url: https://api.taskflow.com
-    description: Production server
 
 paths:
-  /api/v1/tasks:
-    get:
-      tags:
-        - Tasks
-      summary: List tasks
-      description: Retrieve a list of tasks with optional status filtering
-      operationId: getTasks
-      parameters:
-        - name: status
-          in: query
-          description: Filter tasks by status
-          required: false
-          schema:
-            type: string
-            enum: [pending, running, completed, failed]
-          example: pending
-      responses:
-        '200':
-          description: Tasks retrieved successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/TaskListResponse'
-        '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
+  /api/v1/workflows:
     post:
       tags:
-        - Tasks
-      summary: Create a new task
-      description: Create a new scheduled task with cron expression and command
-      operationId: createTask
+        - Workflows
+      summary: Create Workflow (PU-001)
+      description: Validates and persists a workflow definition (tasks + dependency graph).
+      operationId: createWorkflow
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateTaskRequest'
-            example:
-              schedule: "0 */5 * * * *"
-              command: ["echo", "hello world"]
+              $ref: '#/components/schemas/CreateWorkflowRequest'
       responses:
         '201':
-          description: Task created successfully
+          description: Workflow created successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TaskResponse'
+                $ref: '#/components/schemas/CreateWorkflowResponse'
         '400':
-          description: Invalid request payload
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
-          description: Internal server error
+          description: Invalid workflow definition
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
-  /api/v1/tasks/{id}:
+  /api/v1/workflows/{id}/start:
+    post:
+      tags:
+        - Workflows
+      summary: Start Workflow (PU-002)
+      description: Transitions a workflow from CREATED to RUNNING and asks the Orchestrator to dispatch its initial ready tasks.
+      operationId: startWorkflow
+      parameters:
+        - $ref: '#/components/parameters/WorkflowId'
+      responses:
+        '202':
+          description: Start request accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AcceptedResponse'
+        '404':
+          description: Workflow not found
+        '409':
+          description: Workflow cannot be started from its current status
+
+  /api/v1/workflows/{id}:
+    get:
+      tags:
+        - Workflows
+      summary: Get Workflow Status (PU-003)
+      description: Returns the workflow's status together with the status of every one of its tasks.
+      operationId: getWorkflowStatus
+      parameters:
+        - $ref: '#/components/parameters/WorkflowId'
+      responses:
+        '200':
+          description: Workflow status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowStatusResponse'
+        '404':
+          description: Workflow not found
+
+  /api/v1/workflows/{id}/cancel:
+    post:
+      tags:
+        - Workflows
+      summary: Cancel Workflow (PU-005)
+      description: Cancels a running (or not yet started) workflow. Pending/running tasks transition to CANCELLED.
+      operationId: cancelWorkflow
+      parameters:
+        - $ref: '#/components/parameters/WorkflowId'
+      responses:
+        '202':
+          description: Cancel request accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AcceptedResponse'
+        '404':
+          description: Workflow not found
+        '409':
+          description: Workflow already in a terminal status
+
+  /api/v1/tasks/{taskId}/results:
     get:
       tags:
         - Tasks
-      summary: Get a task by ID
-      description: Retrieve a specific task by its unique identifier
-      operationId: getTask
+      summary: Get Task Results (PU-004)
+      description: Returns every execution attempt recorded for a task.
+      operationId: getTaskResults
       parameters:
-        - name: id
+        - name: taskId
           in: path
           required: true
-          description: Task ID (UUID)
           schema:
-            type: string
-            format: uuid
-          example: "123e4567-e89b-12d3-a456-426614174000"
+            type: integer
       responses:
         '200':
-          description: Task retrieved successfully
+          description: Task results
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TaskResponse'
-        '400':
-          description: Invalid task ID format
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: '#/components/schemas/TaskResultListResponse'
         '404':
           description: Task not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
 
 components:
+  parameters:
+    WorkflowId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+
   schemas:
-    CreateTaskRequest:
+    TaskDefinition:
       type: object
-      required:
-        - schedule
-        - command
+      required: [ref, name, command]
       properties:
-        schedule:
+        ref:
           type: string
-          description: Cron expression for task scheduling
-          example: "0 */5 * * * *"
-          pattern: '^(\*|([0-9]|1[0-9]|2[0-9]|3[0-9]|4[0-9]|5[0-9])|\*\/([0-9]|1[0-9]|2[0-9]|3[0-9]|4[0-9]|5[0-9])) (\*|([0-9]|1[0-9]|2[0-9]|3[0-9]|4[0-9]|5[0-9])|\*\/([0-9]|1[0-9]|2[0-9]|3[0-9]|4[0-9]|5[0-9])) (\*|([0-9]|1[0-9]|2[0-3])|\*\/([0-9]|1[0-9]|2[0-3])) (\*|([1-9]|1[0-9]|2[0-9]|3[0-1])|\*\/([1-9]|1[0-9]|2[0-9]|3[0-1])) (\*|([1-9]|1[0-2])|\*\/([1-9]|1[0-2])) (\*|([0-6])|\*\/([0-6]))$'
+          description: Client-chosen identifier used only to express dependencies within this request.
+        name:
+          type: string
         command:
+          type: string
+        timeout:
+          type: integer
+          nullable: true
+          description: Timeout in seconds. Omitted or null means no timeout.
+        depends_on:
           type: array
           items:
             type: string
-          description: Command and arguments to execute
-          example: ["echo", "hello world"]
-          minItems: 1
+          description: Refs of tasks that must SUCCEED before this task may start.
 
-    TaskResponse:
+    CreateWorkflowRequest:
+      type: object
+      required: [name, tasks]
+      properties:
+        name:
+          type: string
+        tasks:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/TaskDefinition'
+
+    CreateWorkflowResponse:
       type: object
       properties:
         id:
+          type: integer
+
+    AcceptedResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+        message:
           type: string
-          format: uuid
-          description: Unique task identifier
-          example: "123e4567-e89b-12d3-a456-426614174000"
-        schedule:
+
+    TaskStatusResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
           type: string
-          description: Cron expression for task scheduling
-          example: "0 */5 * * * *"
-        command:
-          type: array
-          items:
-            type: string
-          description: Command and arguments to execute
-          example: ["echo", "hello world"]
         status:
           type: string
-          enum: [pending, running, completed, failed]
-          description: Current task status
-          example: pending
+          enum: [PENDING, RUNNING, SUCCEEDED, FAILED, CANCELLED]
+
+    WorkflowStatusResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        status:
+          type: string
+          enum: [CREATED, RUNNING, COMPLETED, FAILED, CANCELLED]
         created_at:
           type: string
           format: date-time
-          description: Task creation timestamp
-          example: "2023-01-01T00:00:00Z"
         updated_at:
           type: string
           format: date-time
-          description: Task last update timestamp
-          example: "2023-01-01T00:00:00Z"
+        tasks:
+          type: array
+          items:
+            $ref: '#/components/schemas/TaskStatusResponse'
 
-    HealthResponse:
+    TaskResultResponse:
       type: object
       properties:
-        status:
+        id:
+          type: integer
+        task_id:
+          type: integer
+        attempt:
+          type: integer
+        success:
+          type: boolean
+        output:
           type: string
-          enum: [healthy, unhealthy]
-          description: Service health status
-          example: healthy
-        service:
-          type: string
-          description: Service name
-          example: scheduler
-        database:
-          type: string
-          description: Database connection status
-          example: connected
         error:
           type: string
-          description: Error message if unhealthy
-          example: "database connection failed"
+        start_time:
+          type: string
+          format: date-time
+        end_time:
+          type: string
+          format: date-time
+
+    TaskResultListResponse:
+      type: object
+      properties:
+        task_id:
+          type: integer
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/TaskResultResponse'
 
     ErrorResponse:
       type: object
       properties:
         error:
           type: string
-          description: Error message
-          example: "Invalid task ID"
-
-    TaskListResponse:
-      type: object
-      properties:
-        tasks:
-          type: array
-          items:
-            $ref: '#/components/schemas/TaskResponse'
-          description: List of tasks
-        count:
-          type: integer
-          description: Number of tasks returned
-          example: 10
 
 tags:
-  - name: Health
-    description: Health check operations
+  - name: Workflows
+    description: Workflow lifecycle operations (create, start, status, cancel)
   - name: Tasks
-    description: Operations about tasks
+    description: Task result retrieval

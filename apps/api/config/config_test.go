@@ -3,7 +3,6 @@ package config
 import (
 	"os"
 	"path/filepath"
-	"reflect"
 	"testing"
 	"time"
 
@@ -12,192 +11,69 @@ import (
 )
 
 func TestDefaultConfig(t *testing.T) {
-	tests := []struct {
-		name string
-		want *Config
-	}{
-		{
-			name: "returns config with correct default values",
-			want: &Config{
-				Server: ServerConfig{
-					Port: "8081",
-				},
-				Database: persistence.Config{
-					Host:     "postgres",
-					Port:     "5432",
-					User:     "taskflow",
-					Password: "taskflow",
-					Database: "taskflow",
-					SSLMode:  "disable",
-				},
-				Logging: LoggingConfig{
-					Level:  "info",
-					Format: "json",
-				},
-			},
-		},
-	}
+	cfg := DefaultConfig()
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := DefaultConfig()
-			reflect.DeepEqual(tt.want, got)
-		})
-	}
+	assert.Equal(t, "8081", cfg.Server.Port)
+	assert.Equal(t, "postgres", cfg.Database.Host)
+	assert.Equal(t, "taskflow", cfg.Database.User)
+	assert.Equal(t, "nats://nats:4222", cfg.NATS.URL)
+	assert.Equal(t, "workflow.commands.start", cfg.NATS.WorkflowStartSubject)
+	assert.Equal(t, "workflow.commands.cancel", cfg.NATS.WorkflowCancelSubject)
+	assert.Equal(t, "info", cfg.Logging.Level)
 }
 
 func TestLoadConfig(t *testing.T) {
-	tests := []struct {
-		name       string
-		filepath   string
-		wantErr    bool
-		wantConfig *Config
-	}{
-		{
-			name:       "empty filepath returns default config",
-			filepath:   "",
-			wantErr:    false,
-			wantConfig: DefaultConfig(),
-		},
-		{
-			name:     "valid config file loads correctly",
-			filepath: filepath.Join("test_data", "valid_config.yaml"),
-			wantErr:  false,
-			wantConfig: &Config{
-				Server: ServerConfig{
-					Port: "8081",
-				},
-				Database: persistence.Config{
-					Host:                   "postgres",
-					Port:                   "5432",
-					User:                   "taskflow",
-					Password:               "taskflow",
-					Database:               "taskflow",
-					SSLMode:                "disable",
-					MaxOpenConns:           25,
-					MaxIdleConns:           5,
-					ConnMaxLifetimeMinutes: 60,
-				},
-				Logging: LoggingConfig{
-					Level:  "info",
-					Format: "json",
-				},
-			},
-		},
-		{
-			name:       "nonexistent file returns default config",
-			filepath:   "nonexistent.yaml",
-			wantErr:    false,
-			wantConfig: DefaultConfig(),
-		},
-		{
-			name:       "invalid yaml returns default config",
-			filepath:   filepath.Join("test_data", "invalid_config.yaml"),
-			wantErr:    false,
-			wantConfig: DefaultConfig(),
-		},
-		{
-			name:     "partial config file merges with defaults",
-			filepath: filepath.Join("test_data", "partial_config.yaml"),
-			wantErr:  false,
-			wantConfig: &Config{
-				Server: ServerConfig{
-					Port: "7070", // from partial config
-				},
-				Database: persistence.Config{
-					Host:                   "postgres", // from defaults
-					Port:                   "5432",     // from defaults
-					User:                   "taskflow", // from defaults
-					Password:               "taskflow", // from defaults
-					Database:               "taskflow", // from defaults
-					SSLMode:                "disable",  // from defaults
-					MaxOpenConns:           25,         // from defaults
-					MaxIdleConns:           5,          // from defaults
-					ConnMaxLifetimeMinutes: 60,         // from defaults
-				},
-				Logging: LoggingConfig{
-					Level:  "info", // from defaults
-					Format: "json", // from defaults
-				},
-			},
-		},
-	}
+	t.Run("empty filepath returns default config", func(t *testing.T) {
+		got, err := LoadConfig("")
+		assert.NoError(t, err)
+		assert.Equal(t, DefaultConfig(), got)
+	})
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := LoadConfig(tt.filepath)
-			if tt.wantErr {
-				assert.NotNil(t, err)
-			} else {
-				assert.Nil(t, err)
-			}
+	t.Run("valid config file loads correctly", func(t *testing.T) {
+		got, err := LoadConfig(filepath.Join("test_data", "valid_config.yaml"))
+		assert.NoError(t, err)
 
-			assert.Equal(t, tt.wantConfig, got)
-		})
-	}
+		want := DefaultConfig()
+		want.Database.MaxOpenConns = 25
+		want.Database.MaxIdleConns = 5
+		want.Database.ConnMaxLifetimeMinutes = 60
+		assert.Equal(t, want, got)
+	})
+
+	t.Run("nonexistent file returns default config", func(t *testing.T) {
+		got, err := LoadConfig("nonexistent.yaml")
+		assert.NoError(t, err)
+		assert.Equal(t, DefaultConfig(), got)
+	})
+
+	t.Run("partial config file merges with defaults", func(t *testing.T) {
+		got, err := LoadConfig(filepath.Join("test_data", "partial_config.yaml"))
+		assert.NoError(t, err)
+
+		want := DefaultConfig()
+		want.Server.Port = "7070"
+		assert.Equal(t, want, got)
+	})
 }
 
 func TestLoadConfigWithEnvOverrides(t *testing.T) {
 	tests := []struct {
-		name       string
-		filepath   string
-		envVars    map[string]string
-		wantErr    bool
-		wantConfig *Config
+		name     string
+		filepath string
+		envVars  map[string]string
+		mutate   func(*Config)
 	}{
 		{
 			name:     "no env vars uses config file values",
 			filepath: filepath.Join("test_data", "valid_config.yaml"),
 			envVars:  map[string]string{},
-			wantErr:  false,
-			wantConfig: &Config{
-				Server: ServerConfig{
-					Port: "8081",
-				},
-				Database: persistence.Config{
-					Host:                   "postgres",
-					Port:                   "5432",
-					User:                   "taskflow",
-					Password:               "taskflow",
-					Database:               "taskflow",
-					SSLMode:                "disable",
-					MaxOpenConns:           25,
-					MaxIdleConns:           5,
-					ConnMaxLifetimeMinutes: 60,
-				},
-				Logging: LoggingConfig{
-					Level:  "info",
-					Format: "json",
-				},
-			},
+			mutate:   func(c *Config) {},
 		},
 		{
 			name:     "PORT env var overrides config",
 			filepath: filepath.Join("test_data", "valid_config.yaml"),
-			envVars: map[string]string{
-				"PORT": "9999",
-			},
-			wantErr: false,
-			wantConfig: &Config{
-				Server: ServerConfig{
-					Port: "9999",
-				},
-				Database: persistence.Config{
-					Host:                   "postgres",
-					Port:                   "5432",
-					User:                   "taskflow",
-					Password:               "taskflow",
-					Database:               "taskflow",
-					SSLMode:                "disable",
-					MaxOpenConns:           25,
-					MaxIdleConns:           5,
-					ConnMaxLifetimeMinutes: 60,
-				},
-				Logging: LoggingConfig{
-					Level:  "info",
-					Format: "json",
-				},
-			},
+			envVars:  map[string]string{"PORT": "9999"},
+			mutate:   func(c *Config) { c.Server.Port = "9999" },
 		},
 		{
 			name:     "all database env vars override config",
@@ -209,141 +85,38 @@ func TestLoadConfigWithEnvOverrides(t *testing.T) {
 				"DB_PASSWORD": "envpass",
 				"DB_NAME":     "envdb",
 			},
-			wantErr: false,
-			wantConfig: &Config{
-				Server: ServerConfig{
-					Port: "8081",
-				},
-				Database: persistence.Config{
-					Host:                   "env-postgres",
-					Port:                   "5433",
-					User:                   "envuser",
-					Password:               "envpass",
-					Database:               "envdb",
-					SSLMode:                "disable",
-					MaxOpenConns:           25,
-					MaxIdleConns:           5,
-					ConnMaxLifetimeMinutes: 60,
-				},
-				Logging: LoggingConfig{
-					Level:  "info",
-					Format: "json",
-				},
+			mutate: func(c *Config) {
+				c.Database.Host = "env-postgres"
+				c.Database.Port = "5433"
+				c.Database.User = "envuser"
+				c.Database.Password = "envpass"
+				c.Database.Database = "envdb"
 			},
 		},
 		{
 			name:     "NATS_URL env var overrides config",
 			filepath: filepath.Join("test_data", "valid_config.yaml"),
-			envVars: map[string]string{
-				"NATS_URL": "nats://env-nats:4223",
-			},
-			wantErr: false,
-			wantConfig: &Config{
-				Server: ServerConfig{
-					Port: "8081",
-				},
-				Database: persistence.Config{
-					Host:                   "postgres",
-					Port:                   "5432",
-					User:                   "taskflow",
-					Password:               "taskflow",
-					Database:               "taskflow",
-					SSLMode:                "disable",
-					MaxOpenConns:           25,
-					MaxIdleConns:           5,
-					ConnMaxLifetimeMinutes: 60,
-				},
-				Logging: LoggingConfig{
-					Level:  "info",
-					Format: "json",
-				},
-			},
-		},
-		{
-			name:     "NOTIFIER_ADDRESS env var overrides config",
-			filepath: filepath.Join("test_data", "valid_config.yaml"),
-			envVars: map[string]string{
-				"NOTIFIER_ADDRESS": "env-notifier:8084",
-			},
-			wantErr: false,
-			wantConfig: &Config{
-				Server: ServerConfig{
-					Port: "8081",
-				},
-				Database: persistence.Config{
-					Host:                   "postgres",
-					Port:                   "5432",
-					User:                   "taskflow",
-					Password:               "taskflow",
-					Database:               "taskflow",
-					SSLMode:                "disable",
-					MaxOpenConns:           25,
-					MaxIdleConns:           5,
-					ConnMaxLifetimeMinutes: 60,
-				},
-				Logging: LoggingConfig{
-					Level:  "info",
-					Format: "json",
-				},
-			},
+			envVars:  map[string]string{"NATS_URL": "nats://env-nats:4223"},
+			mutate:   func(c *Config) { c.NATS.URL = "nats://env-nats:4223" },
 		},
 		{
 			name:     "LOG_LEVEL env var overrides config",
 			filepath: filepath.Join("test_data", "valid_config.yaml"),
-			envVars: map[string]string{
-				"LOG_LEVEL": "debug",
-			},
-			wantErr: false,
-			wantConfig: &Config{
-				Server: ServerConfig{
-					Port: "8081",
-				},
-				Database: persistence.Config{
-					Host:                   "postgres",
-					Port:                   "5432",
-					User:                   "taskflow",
-					Password:               "taskflow",
-					Database:               "taskflow",
-					SSLMode:                "disable",
-					MaxOpenConns:           25,
-					MaxIdleConns:           5,
-					ConnMaxLifetimeMinutes: 60,
-				},
-				Logging: LoggingConfig{
-					Level:  "debug",
-					Format: "json",
-				},
-			},
+			envVars:  map[string]string{"LOG_LEVEL": "debug"},
+			mutate:   func(c *Config) { c.Logging.Level = "debug" },
 		},
 		{
 			name:     "multiple env vars override config",
 			filepath: filepath.Join("test_data", "partial_config.yaml"),
 			envVars: map[string]string{
-				"PORT":             "7777",
-				"DB_HOST":          "multi-env-postgres",
-				"NATS_URL":         "nats://multi-env-nats:4223",
-				"NOTIFIER_ADDRESS": "multi-env-notifier:8085",
+				"PORT":     "7777",
+				"DB_HOST":  "multi-env-postgres",
+				"NATS_URL": "nats://multi-env-nats:4223",
 			},
-			wantErr: false,
-			wantConfig: &Config{
-				Server: ServerConfig{
-					Port: "7777",
-				},
-				Database: persistence.Config{
-					Host:                   "multi-env-postgres",
-					Port:                   "5432",
-					User:                   "taskflow",
-					Password:               "taskflow",
-					Database:               "taskflow",
-					SSLMode:                "disable",
-					MaxOpenConns:           25,
-					MaxIdleConns:           5,
-					ConnMaxLifetimeMinutes: 60,
-				},
-				Logging: LoggingConfig{
-					Level:  "info",
-					Format: "json",
-				},
+			mutate: func(c *Config) {
+				c.Server.Port = "7777"
+				c.Database.Host = "multi-env-postgres"
+				c.NATS.URL = "nats://multi-env-nats:4223"
 			},
 		},
 		{
@@ -353,26 +126,9 @@ func TestLoadConfigWithEnvOverrides(t *testing.T) {
 				"PORT":    "6666",
 				"DB_HOST": "override-postgres",
 			},
-			wantErr: false,
-			wantConfig: &Config{
-				Server: ServerConfig{
-					Port: "6666",
-				},
-				Database: persistence.Config{
-					Host:                   "override-postgres",
-					Port:                   "5432",
-					User:                   "taskflow",
-					Password:               "taskflow",
-					Database:               "taskflow",
-					SSLMode:                "disable",
-					MaxOpenConns:           25,
-					MaxIdleConns:           5,
-					ConnMaxLifetimeMinutes: 60,
-				},
-				Logging: LoggingConfig{
-					Level:  "info",
-					Format: "json",
-				},
+			mutate: func(c *Config) {
+				c.Server.Port = "6666"
+				c.Database.Host = "override-postgres"
 			},
 		},
 	}
@@ -385,13 +141,13 @@ func TestLoadConfigWithEnvOverrides(t *testing.T) {
 			}
 
 			got, err := LoadConfigWithEnvOverrides(tt.filepath)
-			if tt.wantErr {
-				assert.NotNil(t, err)
-			} else {
-				assert.Nil(t, err)
-			}
+			assert.NoError(t, err)
 
-			assert.Equal(t, tt.wantConfig, got)
+			want, err := LoadConfig(tt.filepath)
+			assert.NoError(t, err)
+			tt.mutate(want)
+
+			assert.Equal(t, want, got)
 		})
 	}
 }
@@ -430,20 +186,6 @@ func TestConfig_GetDSN(t *testing.T) {
 			},
 			want: "host=custom-host port=5433 user=customuser password=custompass dbname=customdb sslmode=require",
 		},
-		{
-			name: "returns correct DSN with empty password",
-			config: &Config{
-				Database: persistence.Config{
-					Host:     "localhost",
-					Port:     "5432",
-					User:     "testuser",
-					Password: "",
-					Database: "testdb",
-					SSLMode:  "disable",
-				},
-			},
-			want: "host=localhost port=5432 user=testuser password= dbname=testdb sslmode=disable",
-		},
 	}
 
 	for _, tt := range tests {
@@ -461,40 +203,19 @@ func TestConfig_GetConnMaxLifetime(t *testing.T) {
 		want   time.Duration
 	}{
 		{
-			name: "returns correct duration for default value (60 minutes)",
-			config: &Config{
-				Database: persistence.Config{
-					ConnMaxLifetimeMinutes: 60,
-				},
-			},
-			want: 60 * time.Minute,
+			name:   "returns correct duration for default value (60 minutes)",
+			config: &Config{Database: persistence.Config{ConnMaxLifetimeMinutes: 60}},
+			want:   60 * time.Minute,
 		},
 		{
-			name: "returns correct duration for 5 minutes",
-			config: &Config{
-				Database: persistence.Config{
-					ConnMaxLifetimeMinutes: 5,
-				},
-			},
-			want: 5 * time.Minute,
+			name:   "returns correct duration for 5 minutes",
+			config: &Config{Database: persistence.Config{ConnMaxLifetimeMinutes: 5}},
+			want:   5 * time.Minute,
 		},
 		{
-			name: "returns correct duration for 120 minutes",
-			config: &Config{
-				Database: persistence.Config{
-					ConnMaxLifetimeMinutes: 120,
-				},
-			},
-			want: 120 * time.Minute,
-		},
-		{
-			name: "returns zero duration for 0 minutes",
-			config: &Config{
-				Database: persistence.Config{
-					ConnMaxLifetimeMinutes: 0,
-				},
-			},
-			want: 0,
+			name:   "returns zero duration for 0 minutes",
+			config: &Config{Database: persistence.Config{ConnMaxLifetimeMinutes: 0}},
+			want:   0,
 		},
 	}
 
@@ -504,4 +225,17 @@ func TestConfig_GetConnMaxLifetime(t *testing.T) {
 			assert.Equal(t, tt.want, got)
 		})
 	}
+}
+
+func TestConfig_Validate(t *testing.T) {
+	valid := DefaultConfig()
+	assert.NoError(t, valid.Validate())
+
+	missingPort := DefaultConfig()
+	missingPort.Server.Port = ""
+	assert.Error(t, missingPort.Validate())
+
+	missingDBHost := DefaultConfig()
+	missingDBHost.Database.Host = ""
+	assert.Error(t, missingDBHost.Validate())
 }

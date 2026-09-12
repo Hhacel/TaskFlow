@@ -1,4 +1,4 @@
-# Scheduler Configuration
+# API Gateway Configuration
 # This file can be overridden by environment variables
 
 server:
