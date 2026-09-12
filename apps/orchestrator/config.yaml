@@ -1,0 +1,33 @@
+# Orchestrator Configuration
+# This file can be overridden by environment variables
+
+server:
+  port: "8084"
+
+database:
+  host: "postgres"
+  port: "5432"
+  user: "taskflow"
+  password: "taskflow"
+  database: "taskflow"
+  ssl_mode: "disable"
+  max_open_conns: 25
+  max_idle_conns: 5
+  conn_max_lifetime_minutes: 60
+
+nats:
+  url: "nats://nats:4222"
+  workflow_start_subject: "workflow.commands.start"
+  workflow_cancel_subject: "workflow.commands.cancel"
+  task_dispatch_subject: "tasks.dispatch"
+  task_result_subject: "tasks.results"
+  queue_group_name: "orchestrator"
+  reconnect_wait_seconds: 2
+  max_reconnects: 60
+
+orchestrator:
+  max_attempts: 3
+
+logging:
+  level: "info"  # debug, info, warn, error
+  format: "json" # json or text
