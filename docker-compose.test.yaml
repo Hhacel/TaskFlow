@@ -1,0 +1,11 @@
+services:
+  postgres-test:
+    image: postgres:15
+    environment:
+      - POSTGRES_DB=taskflow_test
+      - POSTGRES_USER=taskflow
+      - POSTGRES_PASSWORD=taskflow
+    ports:
+      - "5433:5432"
+    tmpfs:
+      - /var/lib/postgresql/data

@@ -5,63 +5,59 @@ import (
 	"fmt"
 	"log/slog"
 	"os/exec"
+	"runtime"
 	"time"
 
-	"github.com/hhace/taskflow/models"
+	"github.com/hhace/taskflow/internal/task"
 )
 
-// TaskExecutor handles the execution of tasks
+// TaskExecutor handles the execution of dispatched tasks.
 type TaskExecutor struct {
-	timeout time.Duration
+	defaultTimeout time.Duration
 }
 
-// NewTaskExecutor creates a new task executor
-func NewTaskExecutor(timeout time.Duration) *TaskExecutor {
+// NewTaskExecutor creates a new task executor with a fallback timeout used
+// when a dispatched task does not specify its own.
+func NewTaskExecutor(defaultTimeout time.Duration) *TaskExecutor {
 	return &TaskExecutor{
-		timeout: timeout,
+		defaultTimeout: defaultTimeout,
 	}
 }
 
-// ExecutionResult represents the result of a task execution
-type ExecutionResult struct {
-	TaskID    string
-	Success   bool
-	Output    string
-	Error     string
-	StartTime time.Time
-	EndTime   time.Time
-}
-
-// Execute runs the task command and returns the result
-func (e *TaskExecutor) Execute(task *models.Task) *ExecutionResult {
-	result := &ExecutionResult{
-		TaskID:    task.ID.String(),
+// Execute runs the dispatched task's command and returns the result message
+// to be published back to the Orchestrator.
+func (e *TaskExecutor) Execute(msg *task.DispatchMessage) *task.ResultMessage {
+	result := &task.ResultMessage{
+		TaskID:    msg.TaskID,
+		Attempt:   msg.Attempt,
 		StartTime: time.Now(),
 	}
 
-	slog.Info("Executing task", "taskId", task.ID, "command", task.Command)
+	slog.Info("Executing task", "taskId", msg.TaskID, "attempt", msg.Attempt, "command", msg.Command)
 
-	// Validate command
-	if len(task.Command) == 0 {
+	if msg.Command == "" {
 		result.Success = false
 		result.Error = "empty command"
 		result.EndTime = time.Now()
 		return result
 	}
 
-	// Create context with timeout
-	ctx, cancel := context.WithTimeout(context.Background(), e.timeout)
-	defer cancel()
-
-	// Prepare command
-	var cmd *exec.Cmd
-	if len(task.Command) == 1 {
-		cmd = exec.CommandContext(ctx, task.Command[0])
-	} else {
-		cmd = exec.CommandContext(ctx, task.Command[0], task.Command[1:]...)
+	timeout := e.defaultTimeout
+	if msg.TimeoutSeconds != nil {
+		timeout = time.Duration(*msg.TimeoutSeconds) * time.Second
 	}
 
-	// Execute command and capture output
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	// Prepare command: run via platform shell (cmd on Windows, sh otherwise)
+	var cmd *exec.Cmd
+	if runtime.GOOS == "windows" {
+		cmd = exec.CommandContext(ctx, "cmd", "/C", msg.Command)
+	} else {
+		cmd = exec.CommandContext(ctx, "sh", "-c", msg.Command)
+	}
+
 	output, err := cmd.CombinedOutput()
 	result.EndTime = time.Now()
 	result.Output = string(output)
@@ -69,12 +65,12 @@ func (e *TaskExecutor) Execute(task *models.Task) *ExecutionResult {
 	if err != nil {
 		result.Success = false
 		if ctx.Err() == context.DeadlineExceeded {
-			result.Error = fmt.Sprintf("command timed out after %v", e.timeout)
+			result.Error = fmt.Sprintf("command timed out after %v", timeout)
 		} else {
 			result.Error = err.Error()
 		}
 		slog.Error("Task execution failed",
-			"taskId", task.ID,
+			"taskId", msg.TaskID,
 			"error", result.Error,
 			"output", result.Output,
 			"duration", result.EndTime.Sub(result.StartTime))
@@ -83,7 +79,7 @@ func (e *TaskExecutor) Execute(task *models.Task) *ExecutionResult {
 
 	result.Success = true
 	slog.Info("Task execution completed",
-		"taskId", task.ID,
+		"taskId", msg.TaskID,
 		"duration", result.EndTime.Sub(result.StartTime))
 	return result
 }

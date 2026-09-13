@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/hhace/taskflow/apps/worker/config"
 	"github.com/hhace/taskflow/apps/worker/internal/consumer"
+	"github.com/hhace/taskflow/pkg/messaging"
 )
 
 func main() {
@@ -30,15 +31,20 @@ func main() {
 	slog.Info("Configuration loaded",
 		"port", cfg.Server.Port,
 		"natsURL", cfg.NATS.URL,
-		"taskTimeout", cfg.GetTaskTimeout(),
-		"maxConcurrentTasks", cfg.Worker.MaxConcurrentTasks)
+		"defaultTimeout", cfg.DefaultTimeout())
 
-	// Initialize task consumer
-	taskConsumer, err := consumer.NewTaskConsumer(cfg)
+	broker, err := messaging.NewNATSBroker(messaging.NATSConfig{
+		URL:           cfg.NATS.URL,
+		ReconnectWait: cfg.NATS.ReconnectWait,
+		MaxReconnects: cfg.NATS.MaxReconnects,
+	})
 	if err != nil {
-		slog.Error("Failed to create task consumer", "error", err)
+		slog.Error("Failed to connect to NATS", "error", err)
 		os.Exit(1)
 	}
+
+	// Initialize task consumer
+	taskConsumer := consumer.NewTaskConsumer(cfg, broker)
 	defer func() {
 		if err := taskConsumer.Stop(); err != nil {
 			slog.Error("Failed to stop task consumer", "error", err)

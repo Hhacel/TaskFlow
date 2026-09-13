@@ -1,11 +1,11 @@
 # TaskFlow Worker
 
-The Worker service is responsible for executing scheduled tasks in the TaskFlow system. It consumes task messages from NATS queues, executes the commands, and publishes results back to the scheduler.
+The Worker service is responsible for executing dispatched tasks in the TaskFlow system. It consumes task dispatch messages from NATS, executes the commands, and publishes results back to the Orchestrator.
 
 ## Architecture
 
 ```
-NATS Queue --[tasks.schedule]--> Worker --[execute]--> External Commands
+NATS Queue --[tasks.dispatch]--> Worker --[execute]--> Shell Commands
                                    |
                                    v
                          NATS Queue [tasks.results]
@@ -13,10 +13,10 @@ NATS Queue --[tasks.schedule]--> Worker --[execute]--> External Commands
 
 ## Features
 
-- **Queue-based Task Consumption** - Subscribes to NATS `tasks.schedule` subject
+- **Queue-based Task Consumption** - Subscribes to the NATS `tasks.dispatch` subject
 - **Load Balancing** - Uses NATS queue groups to distribute tasks across multiple workers
-- **Command Execution** - Executes arbitrary shell commands with timeout protection
-- **Result Publishing** - Sends execution results to `tasks.results` queue
+- **Command Execution** - Executes arbitrary shell commands with per-task or default timeout protection
+- **Result Publishing** - Sends execution results to the `tasks.results` subject
 - **Graceful Shutdown** - Handles SIGINT/SIGTERM signals properly
 - **Health Checks** - HTTP endpoint for monitoring worker status
 

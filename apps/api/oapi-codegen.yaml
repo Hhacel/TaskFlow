@@ -1,7 +1,0 @@
-# Configuration for oapi-codegen v2
-package: api
-generate:
-  - types
-  - gin-server
-  - spec
-output: internal/api/generated.go

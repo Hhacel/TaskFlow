@@ -7,16 +7,16 @@ import (
 	"syscall"
 
 	"github.com/gin-gonic/gin"
-	schedulerConfig "github.com/hhace/taskflow/apps/api/config"
-	"github.com/hhace/taskflow/apps/api/internal/api"
+	"github.com/hhace/taskflow/apps/api/config"
 	"github.com/hhace/taskflow/apps/api/internal/handlers"
-	"github.com/hhace/taskflow/pkg/database"
+	"github.com/hhace/taskflow/pkg/messaging"
+	"github.com/hhace/taskflow/pkg/persistence"
 )
 
 func main() {
 	// Load configuration
 	configPath := os.Getenv("CONFIG_PATH")
-	cfg, err := schedulerConfig.LoadConfigWithEnvOverrides(configPath)
+	cfg, err := config.LoadConfigWithEnvOverrides(configPath)
 	if err != nil {
 		slog.Error("Failed to load configuration", "error", err)
 		os.Exit(1)
@@ -35,29 +35,38 @@ func main() {
 	// Initialize database connection
 	slog.Info("Initializing database connection")
 
-	if err := database.Connect(cfg.Database, 10); err != nil {
+	db, err := persistence.Connect(cfg.Database, 10)
+	if err != nil {
 		slog.Error("Failed to connect to database", "error", err)
 		os.Exit(1)
 	}
-	defer database.Close()
+	defer persistence.Close(db)
 
 	// Run database migrations
 	slog.Info("Running database migrations")
-	if err := database.Migrate(); err != nil {
+	if err := persistence.Migrate(db); err != nil {
 		slog.Error("Failed to migrate database", "error", err)
 		os.Exit(1)
 	}
 
-	// Initialize services
-	taskRepo := database.NewTaskRepository(database.DB)
-	server, err := handlers.NewSchedulerServer(cfg, taskRepo)
+	// Connect to NATS broker used to send control commands to the Orchestrator
+	broker, err := messaging.NewNATSBroker(messaging.NATSConfig{
+		URL:           cfg.NATS.URL,
+		ReconnectWait: cfg.NATS.ReconnectWait,
+		MaxReconnects: cfg.NATS.MaxReconnects,
+	})
 	if err != nil {
-		slog.Error("Failed to create scheduler server", "error", err)
+		slog.Error("Failed to connect to NATS", "error", err)
 		os.Exit(1)
 	}
+	defer broker.Close()
+
+	// Initialize services
+	repo := persistence.NewRepository(db)
+	handler := handlers.NewWorkflowHandler(cfg, repo, broker)
 
 	// Setup routes
-	r := setupRoutes(server, cfg)
+	r := setupRoutes(handler, cfg)
 
 	// Start server in a goroutine
 	go func() {
@@ -78,14 +87,23 @@ func main() {
 	slog.Info("Shutting down API...")
 }
 
-// setupRoutes configures all the routes using the generated API
-func setupRoutes(server api.ServerInterface, cfg *schedulerConfig.Config) *gin.Engine {
+// setupRoutes configures every route for the 5 TaskFlow use cases.
+func setupRoutes(h *handlers.WorkflowHandler, cfg *config.Config) *gin.Engine {
 	r := gin.Default()
 
-	// Register the generated API routes
-	api.RegisterHandlers(r, server)
+	v1 := r.Group("/api/v1")
+	{
+		v1.POST("/workflows", h.CreateWorkflow)            // PU-001
+		v1.POST("/workflows/:id/start", h.StartWorkflow)   // PU-002
+		v1.GET("/workflows/:id", h.GetWorkflowStatus)      // PU-003
+		v1.GET("/tasks/:taskId/results", h.GetTaskResult)  // PU-004
+		v1.POST("/workflows/:id/cancel", h.CancelWorkflow) // PU-005
+	}
 
-	// Add config endpoint
+	r.GET("/health", func(c *gin.Context) {
+		c.JSON(200, gin.H{"status": "ok", "service": "api"})
+	})
+
 	r.GET("/config", func(c *gin.Context) {
 		c.JSON(200, gin.H{
 			"server": cfg.Server,
@@ -94,6 +112,7 @@ func setupRoutes(server api.ServerInterface, cfg *schedulerConfig.Config) *gin.E
 				"port":     cfg.Database.Port,
 				"database": cfg.Database.Database,
 			},
+			"nats": cfg.NATS,
 		})
 	})
 

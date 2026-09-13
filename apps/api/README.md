@@ -1,123 +1,77 @@
-# TaskFlow API
+# TaskFlow API Gateway
 
-The API service is the main entry point for the TaskFlow system. It handles all incoming HTTP requests, authenticates users, validates input, and manages task CRUD operations and persistence.
-
-## OpenAPI Code Generation
-
-This service uses [oapi-codegen](https://github.com/oapi-codegen/oapi-codegen) to generate Go code from OpenAPI specifications.
-
-### Prerequisites
-
-Install the `oapi-codegen` CLI tool:
-```bash
-go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
-```
-
-### Generate API Code
-
-From the api directory, run:
-```bash
-# Generate all API code (types, server interfaces)
-make generate
-
-# Or generate specific parts
-make types   # Generate only types
-make server  # Generate only server interfaces
-```
-
-### View API Documentation
-
-The OpenAPI specification is available at `api/openapi.yaml`. You can:
-
-1. View it directly in any OpenAPI-compatible viewer
-2. Use tools like Swagger UI or Postman to import the spec
-3. The generated code provides type-safe interfaces
+The API Gateway is the main entry point for the TaskFlow system. It handles all incoming HTTP requests: it validates and persists workflow definitions directly against PostgreSQL, and delegates process-control decisions (start/cancel) to the Orchestrator over NATS.
 
 ## API Endpoints
 
 ### Health Check
 - `GET /health` - Check service health status
 
-### Task Management
-- `POST /api/v1/tasks` - Create a new task
-- `GET /api/v1/tasks` - List all tasks (with optional status filter)
-- `GET /api/v1/tasks/{id}` - Get a specific task by ID
-- `GET /api/v1/stats` - Get task statistics
+### Workflow Management
+
+| Use Case | Method & Path |
+|----------|---------------|
+| Create Workflow | `POST /api/v1/workflows` |
+| Start Workflow | `POST /api/v1/workflows/{id}/start` |
+| Get Workflow Status | `GET /api/v1/workflows/{id}` |
+| Cancel Workflow | `POST /api/v1/workflows/{id}/cancel` |
+| Get Task Results | `GET /api/v1/tasks/{taskId}/results` |
+
+See [openapi/taskflow.yaml](./openapi/taskflow.yaml) for the full OpenAPI specification.
 
 ## Request/Response Examples
 
-### Create Task
+### Create Workflow
 ```bash
-curl -X POST http://localhost:8081/api/v1/tasks \
+curl -X POST http://localhost:8081/api/v1/workflows \
   -H "Content-Type: application/json" \
   -d '{
-    "schedule": "0 */5 * * * *",
-    "command": ["echo", "hello world"]
+    "name": "example-workflow",
+    "tasks": [
+      { "ref": "a", "name": "task-a", "command": "echo a" },
+      { "ref": "b", "name": "task-b", "command": "echo b", "depends_on": ["a"] }
+    ]
   }'
 ```
 
-### Get Tasks
+### Start Workflow
 ```bash
-# Get all tasks
-curl http://localhost:8081/api/v1/tasks
+curl -X POST http://localhost:8081/api/v1/workflows/1/start
+```
 
-# Get tasks by status
-curl http://localhost:8081/api/v1/tasks?status=pending
+### Get Workflow Status
+```bash
+curl http://localhost:8081/api/v1/workflows/1
+```
+
+### Get Task Results
+```bash
+curl http://localhost:8081/api/v1/tasks/1/results
+```
+
+### Cancel Workflow
+```bash
+curl -X POST http://localhost:8081/api/v1/workflows/1/cancel
 ```
 
 ## Schema
 
-### Task Statuses
-- `created` - Task has been created and is awaiting scheduling
-- `pending` - Task is scheduled and waiting to be processed
-- `completed` - Task finished successfully
-- `failed` - Task failed during execution
+### Workflow Statuses
+`CREATED → RUNNING → {COMPLETED, FAILED, CANCELLED}` (also `CREATED → CANCELLED`)
 
-#### Task State Diagram
+### Task Statuses
+`PENDING → {RUNNING, CANCELLED}`; `RUNNING → {SUCCEEDED, FAILED, CANCELLED}`; `FAILED → {RUNNING (retry), CANCELLED}`
+
+#### Workflow State Diagram
 ```mermaid
 stateDiagram-v2
-    [*] --> created: Task Created
-    created --> pending: Task Scheduled
-    pending --> completed: Execution Success
-    pending --> failed: Execution Error
-    completed --> [*]
-    failed --> [*]
-    
-    note right of created
-        Task has been created
-        and is awaiting scheduling
-    end note
-    
-    note right of pending
-        Task is scheduled
-        and waiting to be processed
-    end note
-    
-    note right of completed
-        Task finished
-        successfully
-    end note
-    
-    note right of failed
-        Task failed
-        during execution
-    end note
+    [*] --> CREATED: Workflow Created
+    CREATED --> RUNNING: Started
+    CREATED --> CANCELLED: Cancelled
+    RUNNING --> COMPLETED: All tasks succeeded
+    RUNNING --> FAILED: A task permanently failed
+    RUNNING --> CANCELLED: Cancelled
+    COMPLETED --> [*]
+    FAILED --> [*]
+    CANCELLED --> [*]
 ```
-
-### Cron Expression Format
-The schedule field uses standard cron expression format:
-```
-* * * * * *
-│ │ │ │ │ │
-│ │ │ │ │ └─ Day of week: * (every day)
-│ │ │ │ └─── Month: * (every month)
-│ │ │ └───── Day of month: * (every day)
-│ │ └─────── Hours: * (every hour)
-│ └───────── Minutes: * (every minute)
-└────────────── Seconds: */30 (every 30 seconds)
-```
-
-Examples:
-- `0 */5 * * * *` - Every 5 minutes
-- `0 0 9 * * MON-FRI` - Every weekday at 9 AM
-- `0 30 14 * * *` - Every day at 2:30 PM

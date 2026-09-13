@@ -1,0 +1,238 @@
+{
+	"info": {
+		"name": "TaskFlow API Gateway",
+		"description": "REST gateway for the TaskFlow workflow orchestration system. Implements the 5 supported use cases: create, start, inspect and cancel a workflow, and retrieve task results. All process-control decisions (dependency resolution, task dispatch) are made asynchronously by the Orchestrator.\n\nGenerated from apps/api/openapi/taskflow.yaml (v2.0.0).",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_postman_id": "b6b1a6b0-1f2e-4a0e-9f0d-taskflow-api-gateway"
+	},
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:8081",
+			"type": "string"
+		},
+		{
+			"key": "workflowId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "taskId",
+			"value": "",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "Workflows",
+			"item": [
+				{
+					"name": "Create Workflow (PU-001)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 201', function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"if (pm.response.code === 201) {",
+									"    const body = pm.response.json();",
+									"    pm.collectionVariables.set('workflowId', body.id);",
+									"    pm.test('Response has workflow id', function () {",
+									"        pm.expect(body.id).to.exist;",
+									"    });",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"sample-workflow\",\n  \"tasks\": [\n    {\n      \"ref\": \"task-1\",\n      \"name\": \"First task\",\n      \"command\": \"echo hello\",\n      \"timeout\": 30,\n      \"depends_on\": []\n    },\n    {\n      \"ref\": \"task-2\",\n      \"name\": \"Second task\",\n      \"command\": \"echo world\",\n      \"timeout\": 30,\n      \"depends_on\": [\"task-1\"]\n    }\n  ]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/workflows",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"workflows"
+							]
+						},
+						"description": "Validates and persists a workflow definition (tasks + dependency graph)."
+					},
+					"response": []
+				},
+				{
+					"name": "Start Workflow (PU-002)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 202', function () {",
+									"    pm.response.to.have.status(202);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/workflows/{{workflowId}}/start",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"workflows",
+								"{{workflowId}}",
+								"start"
+							]
+						},
+						"description": "Transitions a workflow from CREATED to RUNNING and asks the Orchestrator to dispatch its initial ready tasks."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Workflow Status (PU-003)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"if (pm.response.code === 200) {",
+									"    const body = pm.response.json();",
+									"    if (body.tasks && body.tasks.length > 0) {",
+									"        pm.collectionVariables.set('taskId', body.tasks[0].id);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/workflows/{{workflowId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"workflows",
+								"{{workflowId}}"
+							]
+						},
+						"description": "Returns the workflow's status together with the status of every one of its tasks."
+					},
+					"response": []
+				},
+				{
+					"name": "Cancel Workflow (PU-005)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 202', function () {",
+									"    pm.response.to.have.status(202);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/workflows/{{workflowId}}/cancel",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"workflows",
+								"{{workflowId}}",
+								"cancel"
+							]
+						},
+						"description": "Cancels a running (or not yet started) workflow. Pending/running tasks transition to CANCELLED."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Tasks",
+			"item": [
+				{
+					"name": "Get Task Results (PU-004)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200', function () {",
+									"    pm.response.to.have.status(200);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/tasks/{{taskId}}/results",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"tasks",
+								"{{taskId}}",
+								"results"
+							]
+						},
+						"description": "Returns every execution attempt recorded for a task."
+					},
+					"response": []
+				}
+			]
+		}
+	]
+}
