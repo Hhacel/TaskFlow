@@ -19,7 +19,7 @@ const (
 // Task represents a single unit of work belonging to a Workflow.
 type Task struct {
 	ID         uint       `gorm:"primaryKey;autoIncrement" json:"id"`
-	WorkflowID uint       `gorm:"not null;index" json:"workflow_id"`
+	WorkflowID uint       `gorm:" " json:"workflow_id"`
 	Name       string     `gorm:"type:varchar(255);not null" json:"name"`
 	Command    string     `gorm:"type:text;not null" json:"command"`
 	Status     TaskStatus `gorm:"type:varchar(255);not null;default:PENDING" json:"status"`

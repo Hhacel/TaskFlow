@@ -4,21 +4,27 @@ go 1.25.0
 
 require (
 	github.com/gin-gonic/gin v1.9.1
+	github.com/nats-io/nats-server/v2 v2.12.3
 	github.com/stretchr/testify v1.11.1
 	gorm.io/driver/postgres v1.6.2
 	gorm.io/gorm v1.31.2
 )
 
 require (
+	github.com/antithesishq/antithesis-sdk-go v0.5.0-default-no-op // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/google/go-tpm v0.9.7 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/klauspost/compress v1.18.2 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
+	github.com/minio/highwayhash v1.0.4-0.20251030100505-070ab1a87a76 // indirect
+	github.com/nats-io/jwt/v2 v2.8.0 // indirect
 	github.com/nats-io/nkeys v0.4.12 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
 	golang.org/x/sync v0.19.0 // indirect
+	golang.org/x/time v0.14.0 // indirect
 )
 
 require (

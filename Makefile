@@ -15,25 +15,40 @@ logs:
 
 # Development commands
 test:
-	@powershell -Command "$$packages = go list ./... | Where-Object { $$_ -notmatch '/cmd$$' -and $$_ -notmatch '/pkg/persistence$$' }; go test $$packages -cover"
+	@packages="$$(go list ./... | grep -Ev '/cmd$$|/pkg/persistence$$|/test/e2e$$')"; \
+	go test $$packages -cover
 
 # Run unit tests only (fast)
 test-unit:
-	@powershell -Command "$$packages = go list ./... | Where-Object { $$_ -notmatch '/cmd$$' -and $$_ -notmatch '/pkg/persistence$$' }; go test $$packages -short -cover"
+	@packages="$$(go list ./... | grep -Ev '/cmd$$|/pkg/persistence$$|/test/e2e$$')"; \
+	go test $$packages -short -cover
 
 # Persistence integration tests (requires PostgreSQL)
 test-persistence:
 	@echo "Starting test database..."
 	docker-compose -f docker-compose.test.yaml up -d
 	@echo "Waiting for database to be ready..."
-	@powershell -Command "Start-Sleep -Seconds 5"
+	@sleep 5
 	@echo "Running persistence tests..."
-	@powershell -Command "$$env:TEST_DB_HOST='localhost'; $$env:TEST_DB_PORT='5433'; $$env:TEST_DB_USER='taskflow'; $$env:TEST_DB_PASSWORD='taskflow'; $$env:TEST_DB_NAME='taskflow_test'; go test ./pkg/persistence/... -v -cover"
+	TEST_DB_HOST=localhost TEST_DB_PORT=5433 TEST_DB_USER=taskflow TEST_DB_PASSWORD=taskflow TEST_DB_NAME=taskflow_test go test ./pkg/persistence/... -v -cover
 	@echo "Stopping test database..."
 	docker-compose -f docker-compose.test.yaml down
 
-# Run all tests including integration tests
-test-all: test test-persistence
+# End-to-end system tests: builds the real api/orchestrator/worker binaries,
+# runs them against a real Postgres instance and an embedded NATS server, and
+# drives them exclusively through the public HTTP API (requires PostgreSQL).
+test-e2e:
+	@echo "Starting test database..."
+	docker-compose -f docker-compose.test.yaml up -d
+	@echo "Waiting for database to be ready..."
+	@sleep 5
+	@echo "Running e2e tests..."
+	TEST_DB_HOST=localhost TEST_DB_PORT=5433 TEST_DB_USER=taskflow TEST_DB_PASSWORD=taskflow TEST_DB_NAME=taskflow_test go test ./test/e2e/... -v -timeout 120s
+	@echo "Stopping test database..."
+	docker-compose -f docker-compose.test.yaml down
+
+# Run all tests including integration and e2e tests
+test-all: test test-persistence test-e2e
 
 clean:
 	docker-compose down -v
